@@ -1,0 +1,125 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../AuthContext.jsx'
+import { useToast } from '../toast.jsx'
+import { getFriendships, getListsByOwner, getProfile, removeFriendship } from '../api.js'
+import { sameTopic } from '../compare.js'
+import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import ListCard from '../components/ListCard.jsx'
+
+export default function ProfilePage() {
+  const { id } = useParams()
+  const { user } = useAuth()
+  const toast = useToast()
+  const navigate = useNavigate()
+
+  const [profile, setProfile] = useState(undefined)
+  const [lists, setLists] = useState([])
+  const [myLists, setMyLists] = useState([])
+  const [friendship, setFriendship] = useState(null)
+  const [ready, setReady] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const [p, theirs, mine, friendships] = await Promise.all([
+        getProfile(id),
+        getListsByOwner(id),
+        getListsByOwner(user.id),
+        getFriendships(user.id),
+      ])
+      setProfile(p)
+      setLists(theirs)
+      setMyLists(mine)
+      setFriendship(friendships.find((f) => f.requester_id === id || f.addressee_id === id) ?? null)
+    } catch {
+      toast('Could not load this profile')
+      setProfile(null)
+    } finally {
+      setReady(true)
+    }
+  }, [id, user.id, toast])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  async function unfriend() {
+    if (!friendship) return
+    if (!window.confirm(`Remove @${profile.username} from your friends?`)) return
+    try {
+      await removeFriendship(friendship.id)
+      navigate('/friends', { replace: true })
+    } catch {
+      toast('Could not remove friend')
+    }
+  }
+
+  if (!ready) {
+    return (
+      <>
+        <TopBar title="" back />
+        <Spinner />
+      </>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <>
+        <TopBar title="Profile" back />
+        <Empty title="Person not found" />
+      </>
+    )
+  }
+
+  const isFriend = friendship?.status === 'accepted'
+  const myMatch = (list) => myLists.find((m) => sameTopic(m.title, list.title))
+
+  return (
+    <>
+      <TopBar title={profile.display_name || profile.username} subtitle={`@${profile.username}`} back />
+
+      <div className="profile-head">
+        <Avatar profile={profile} size={64} />
+        <div>
+          <b>{profile.display_name || profile.username}</b>
+          <p className="muted small">
+            {isFriend ? `${lists.length} shared ${lists.length === 1 ? 'list' : 'lists'}` : 'Not friends yet'}
+          </p>
+        </div>
+      </div>
+
+      {lists.length === 0 ? (
+        <Empty title="No lists to show">
+          {isFriend ? `@${profile.username} hasn't shared any lists yet.` : 'Once you are friends you can see the lists they share.'}
+        </Empty>
+      ) : (
+        <div className="stack">
+          {lists.map((list) => {
+            const match = myMatch(list)
+            return (
+              <ListCard
+                key={list.id}
+                list={list}
+                footer={
+                  match && (
+                    <Link className="card-footer-link" to={`/compare/${match.id}/${list.id}`}>
+                      <span>You both have this list</span>
+                      <b>Compare &rarr;</b>
+                    </Link>
+                  )
+                }
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {isFriend && (
+        <button className="btn danger block spaced" onClick={unfriend}>
+          Remove friend
+        </button>
+      )}
+    </>
+  )
+}

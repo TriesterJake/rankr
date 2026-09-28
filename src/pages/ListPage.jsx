@@ -1,0 +1,502 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
+import { CSS } from '@dnd-kit/utilities'
+import { useAuth } from '../AuthContext.jsx'
+import { useToast } from '../toast.jsx'
+import { addItems, deleteItem, deleteList, getItems, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
+import { norm } from '../compare.js'
+import { Empty, Sheet, Spinner, TopBar } from '../components/ui.jsx'
+import ListForm from '../components/ListForm.jsx'
+import { inkOn } from '../templates.js'
+
+const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
+
+// "1. Song A" / "- Song B" / plain lines -> clean titles
+const parseLines = (text) =>
+  text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:\d+\s*[.)\-:]|[-*\u2022])\s*/, '').trim())
+    .filter(Boolean)
+
+function EditPanel({ item, rank, total, onSave, onDelete, onCancel }) {
+  const [title, setTitle] = useState(item.title)
+  const [note, setNote] = useState(item.note || '')
+  const [moveTo, setMoveTo] = useState(String(rank))
+
+  function submit(e) {
+    e.preventDefault()
+    onSave(item.id, { title: title.trim() || item.title, note: note.trim() }, parseInt(moveTo, 10))
+  }
+
+  return (
+    <form className="edit-panel" onSubmit={submit}>
+      <label className="field">
+        <span className="label">Name</span>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} autoComplete="off" />
+      </label>
+      <label className="field">
+        <span className="label">Note (optional)</span>
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why it's here" maxLength={200} autoComplete="off" />
+      </label>
+      <label className="field">
+        <span className="label">Rank (1-{total})</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={total}
+          value={moveTo}
+          onChange={(e) => setMoveTo(e.target.value)}
+        />
+      </label>
+      <div className="edit-actions">
+        <button type="button" className="btn danger" onClick={() => onDelete(item.id)}>
+          Delete
+        </button>
+        <span className="spacer" />
+        <button type="button" className="btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="btn primary">Save</button>
+      </div>
+    </form>
+  )
+}
+
+function SortableRow({ item, rank, total, editing, flash, onToggle, onSave, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
+  return (
+    <li
+      id={`item-${item.id}`}
+      ref={setNodeRef}
+      style={style}
+      className={`row${isDragging ? ' dragging' : ''}${editing ? ' editing' : ''}${flash ? ' flash' : ''}`}
+    >
+      <div className="row-main">
+        <button className={`rank rank-${rank <= 3 ? rank : 'n'}`} onClick={onToggle} aria-label={`Rank ${rank}, edit ${item.title}`}>
+          {rank}
+        </button>
+        <button className="row-text" onClick={onToggle}>
+          <span className="row-title">{item.title}</span>
+          {item.note && <span className="row-note">{item.note}</span>}
+        </button>
+        <button className="drag-handle" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.title}`}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="9" cy="6" r="1.7" />
+            <circle cx="15" cy="6" r="1.7" />
+            <circle cx="9" cy="12" r="1.7" />
+            <circle cx="15" cy="12" r="1.7" />
+            <circle cx="9" cy="18" r="1.7" />
+            <circle cx="15" cy="18" r="1.7" />
+          </svg>
+        </button>
+      </div>
+      {editing && <EditPanel item={item} rank={rank} total={total} onSave={onSave} onDelete={onDelete} onCancel={onToggle} />}
+    </li>
+  )
+}
+
+export default function ListPage() {
+  const { id } = useParams()
+  const { user } = useAuth()
+  const toast = useToast()
+  const navigate = useNavigate()
+
+  const [list, setList] = useState(undefined) // undefined = loading, null = not found
+  const [items, setItems] = useState([])
+  const [editingId, setEditingId] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [myLists, setMyLists] = useState(null)
+  const [draft, setDraft] = useState('')
+  const [rankDraft, setRankDraft] = useState('')
+  const [rankError, setRankError] = useState('')
+  const [flashIds, setFlashIds] = useState([])
+
+  const itemsRef = useRef([])
+  const queue = useRef(Promise.resolve())
+  const inputRef = useRef(null)
+  const endRef = useRef(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const commit = useCallback((next) => {
+    const fixed = normalize(next)
+    itemsRef.current = fixed
+    setItems(fixed)
+  }, [])
+
+  // run server writes one at a time so quick edits can't trip over each other
+  const enqueue = (fn) => {
+    queue.current = queue.current.then(fn).catch(() => {})
+    return queue.current
+  }
+
+  const load = useCallback(async () => {
+    try {
+      const found = await getList(id)
+      setList(found)
+      if (found) commit(await getItems(id))
+    } catch {
+      toast('Could not load this list')
+      setList(null)
+    }
+  }, [id, commit, toast])
+
+  useEffect(() => {
+    setList(undefined)
+    setEditingId(null)
+    load()
+  }, [load])
+
+  const isOwner = Boolean(list && list.owner_id === user.id)
+
+  // ---------- editing actions (owner only) ----------
+
+  function persistOrder(next) {
+    const ids = next.map((i) => i.id)
+    commit(next)
+    enqueue(async () => {
+      try {
+        await reorderItems(id, ids)
+      } catch {
+        toast('Could not save the new order')
+        load()
+      }
+    })
+  }
+
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    const current = itemsRef.current
+    const from = current.findIndex((i) => i.id === active.id)
+    const to = current.findIndex((i) => i.id === over.id)
+    if (from < 0 || to < 0) return
+    persistOrder(arrayMove(current, from, to))
+  }
+
+  function saveItem(itemId, patch, targetRank) {
+    const current = itemsRef.current
+    const existing = current.find((i) => i.id === itemId)
+    if (!existing) return
+    setEditingId(null)
+
+    let next = current
+    if (patch.title !== existing.title || patch.note !== (existing.note || '')) {
+      next = current.map((i) => (i.id === itemId ? { ...i, ...patch } : i))
+      commit(next)
+      enqueue(async () => {
+        try {
+          await updateItem(itemId, patch)
+        } catch {
+          toast('Could not save that change')
+          load()
+        }
+      })
+    }
+
+    const from = next.findIndex((i) => i.id === itemId)
+    const wanted = Number.isFinite(targetRank) ? targetRank : from + 1
+    const to = Math.min(Math.max(wanted - 1, 0), next.length - 1)
+    if (to !== from) persistOrder(arrayMove(next, from, to))
+  }
+
+  function removeItem(itemId) {
+    setEditingId(null)
+    const remaining = itemsRef.current.filter((i) => i.id !== itemId)
+    commit(remaining)
+    const ids = remaining.map((i) => i.id)
+    enqueue(async () => {
+      try {
+        await deleteItem(itemId)
+        await reorderItems(id, ids)
+      } catch {
+        toast('Could not delete that item')
+        load()
+      }
+    })
+  }
+
+  // atRank: optional 1-based rank the new item(s) should land at; anything else adds to the end
+  function addTitles(titles, atRank = null) {
+    const clean = titles.map((t) => t.trim().slice(0, 200)).filter(Boolean)
+    if (clean.length === 0) return
+    enqueue(async () => {
+      try {
+        const created = await addItems(id, clean, itemsRef.current.length)
+        const latest = itemsRef.current
+        const inMiddle = Number.isFinite(atRank) && atRank >= 1 && atRank <= latest.length
+        const at = inMiddle ? atRank - 1 : latest.length
+        const next = [...latest.slice(0, at), ...created, ...latest.slice(at)]
+        commit(next)
+
+        if (inMiddle) {
+          // new rows were saved at the end; now save the order with them in the right spot
+          await reorderItems(id, next.map((i) => i.id))
+        }
+
+        const newIds = created.map((i) => i.id)
+        setFlashIds(newIds)
+        setTimeout(() => setFlashIds((cur) => (cur === newIds ? [] : cur)), 1600)
+
+        if (clean.length > 1) toast(inMiddle ? `Added ${clean.length} items starting at #${at + 1}` : `Added ${clean.length} items`)
+        else if (inMiddle) toast(`Added at #${at + 1}`)
+
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            if (inMiddle) document.getElementById(`item-${newIds[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            else endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+          }),
+        )
+      } catch {
+        toast('Could not add that')
+        load()
+      }
+    })
+  }
+
+  // Returns { ok, rank }. Empty means "add to the end"; otherwise it must be a whole number from 1 to (items + 1).
+  function readRank() {
+    const raw = rankDraft.trim()
+    if (raw === '') return { ok: true, rank: null }
+    const max = itemsRef.current.length + 1
+    if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > max) {
+      setRankError(`Invalid list number. Use 1 to ${max}, or leave it empty to add at the end.`)
+      return { ok: false, rank: null }
+    }
+    return { ok: true, rank: Number(raw) }
+  }
+
+  function handleAdd(e) {
+    e.preventDefault()
+    if (!draft.trim()) return
+    const r = readRank()
+    if (!r.ok) return
+    addTitles([draft], r.rank)
+    setDraft('')
+    setRankDraft('')
+    setRankError('')
+    inputRef.current?.focus()
+  }
+
+  function handlePaste(e) {
+    const text = e.clipboardData.getData('text')
+    if (/\r?\n/.test(text.trim())) {
+      e.preventDefault()
+      const r = readRank()
+      if (!r.ok) return
+      addTitles(parseLines(text), r.rank)
+      setRankDraft('')
+      setRankError('')
+    }
+  }
+
+  async function handleSettings(values) {
+    try {
+      const updated = await updateList(id, values)
+      setList((prev) => ({ ...prev, ...updated }))
+      setSettingsOpen(false)
+    } catch {
+      toast('Could not save settings')
+    }
+  }
+
+  async function handleDeleteList() {
+    if (!window.confirm(`Delete "${list.title}" and everything in it?`)) return
+    try {
+      await deleteList(id)
+      navigate('/', { replace: true })
+    } catch {
+      toast('Could not delete the list')
+    }
+  }
+
+  async function copyAsText() {
+    const text = `${list.title}\n${items.map((it, i) => `${i + 1}. ${it.title}`).join('\n')}`
+    try {
+      await navigator.clipboard.writeText(text)
+      toast('Copied to your clipboard')
+    } catch {
+      toast('Could not copy')
+    }
+  }
+
+  async function openCompare() {
+    setCompareOpen(true)
+    if (myLists === null) {
+      try {
+        setMyLists(await getListsByOwner(user.id))
+      } catch {
+        setMyLists([])
+      }
+    }
+  }
+
+  // ---------- render ----------
+
+  if (list === undefined) {
+    return (
+      <>
+        <TopBar title="" back />
+        <Spinner />
+      </>
+    )
+  }
+
+  if (list === null) {
+    return (
+      <>
+        <TopBar title="List" back />
+        <Empty title="List not found">It may be private, deleted, or shared with a different account.</Empty>
+      </>
+    )
+  }
+
+  const matchesTitle = (mine) => norm(mine.title) === norm(list.title)
+  const sortedMine = myLists ? [...myLists].sort((a, b) => Number(matchesTitle(b)) - Number(matchesTitle(a))) : []
+
+  return (
+    <div className="list-page" style={{ '--list-color': list.color, '--list-ink': inkOn(list.color) }}>
+      <TopBar
+        back
+        title={list.title}
+        subtitle={isOwner ? `${items.length} ${items.length === 1 ? 'item' : 'items'}` : `by @${list.owner?.username ?? 'friend'}`}
+        right={
+          isOwner ? (
+            <>
+              <button className="icon-btn" onClick={copyAsText} aria-label="Copy list as text">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <path d="M5 15V6a2 2 0 012-2h9" />
+                </svg>
+              </button>
+              <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="List settings">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <button className="btn small primary" onClick={openCompare}>
+              Compare
+            </button>
+          )
+        }
+      />
+
+      {items.length === 0 ? (
+        <Empty title={isOwner ? 'Nothing here yet' : 'This list is empty'}>
+          {isOwner && 'Add your first item below. Tip: paste a whole list (one item per line) to add many at once.'}
+        </Empty>
+      ) : isOwner ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
+          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <ol className="rank-list">
+              {items.map((item, i) => (
+                <SortableRow
+                  key={item.id}
+                  item={item}
+                  rank={i + 1}
+                  total={items.length}
+                  editing={editingId === item.id}
+                  flash={flashIds.includes(item.id)}
+                  onToggle={() => setEditingId(editingId === item.id ? null : item.id)}
+                  onSave={saveItem}
+                  onDelete={removeItem}
+                />
+              ))}
+            </ol>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <ol className="rank-list">
+          {items.map((item, i) => (
+            <li key={item.id} className="row">
+              <div className="row-main">
+                <span className={`rank rank-${i + 1 <= 3 ? i + 1 : 'n'}`}>{i + 1}</span>
+                <div className="row-text static">
+                  <span className="row-title">{item.title}</span>
+                  {item.note && <span className="row-note">{item.note}</span>}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div ref={endRef} className="list-end" />
+
+      {isOwner && (
+        <form className="addbar" onSubmit={handleAdd} noValidate>
+          {rankError && (
+            <p className="error rank-error" role="alert">
+              {rankError}
+            </p>
+          )}
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onPaste={handlePaste}
+            placeholder="Add an item..."
+            enterKeyHint="done"
+            autoComplete="off"
+            maxLength={200}
+            aria-label="Add an item"
+          />
+          <label className={rankError ? 'rank-field bad' : 'rank-field'} title="Optional: the rank to insert at. Leave empty to add at the end.">
+            <span aria-hidden="true">#</span>
+            <input
+              inputMode="numeric"
+              value={rankDraft}
+              onChange={(e) => {
+                setRankDraft(e.target.value)
+                setRankError('')
+              }}
+              aria-invalid={Boolean(rankError)}
+              placeholder="End"
+              aria-label="Rank to insert at (leave empty to add at the end)"
+            />
+          </label>
+          <button className="btn primary" disabled={!draft.trim()}>
+            Add
+          </button>
+        </form>
+      )}
+
+      <Sheet open={settingsOpen} onClose={() => setSettingsOpen(false)} title="List settings">
+        <ListForm initial={list} submitLabel="Save" onSubmit={handleSettings} onDelete={handleDeleteList} />
+      </Sheet>
+
+      <Sheet open={compareOpen} onClose={() => setCompareOpen(false)} title="Compare with which of your lists?">
+        {myLists === null && <Spinner />}
+        {myLists && myLists.length === 0 && (
+          <Empty title="You have no lists yet">
+            <Link className="btn primary" to="/">
+              Create one
+            </Link>
+          </Empty>
+        )}
+        {myLists && myLists.length > 0 && (
+          <div className="pick-list">
+            {sortedMine.map((mine) => (
+              <button key={mine.id} className="pick-row" onClick={() => navigate(`/compare/${mine.id}/${list.id}`)}>
+                <span className="pick-dot" style={{ background: mine.color }} />
+                <span className="pick-title">{mine.title}</span>
+                {matchesTitle(mine) && <span className="pill">Same topic</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </Sheet>
+    </div>
+  )
+}
