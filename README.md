@@ -106,3 +106,4 @@ vite.config.js           PWA settings (name, icons, offline caching)
 - Reactions or comments on a friend's list
 - "Head to head" rounds that build a ranking by picking between two items at a time
 - Notifications for friend requests
+
