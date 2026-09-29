@@ -6,7 +6,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { addItems, deleteItem, deleteList, getItems, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
+import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
@@ -164,6 +164,8 @@ export default function ListPage() {
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState(null) // duplicate warning waiting for an answer
   const [photoBusyId, setPhotoBusyId] = useState(null)
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copying, setCopying] = useState(false)
   const [viewing, setViewing] = useState(null) // item whose photo is enlarged
 
   const itemsRef = useRef([])
@@ -451,6 +453,36 @@ export default function ListPage() {
     }
   }
 
+  // Make my own list out of this one (same title, color and items; photos are not copied).
+  async function copyToMine() {
+    if (copying) return
+    setCopying(true)
+    try {
+      const mine = await getListsByOwner(user.id)
+      const created = await createList({
+        ownerId: user.id,
+        title: list.title,
+        icon: list.icon,
+        color: list.color,
+        visibility: 'friends',
+        position: mine.length,
+      })
+      try {
+        await copyItems(created.id, itemsRef.current)
+      } catch (err) {
+        await deleteList(created.id).catch(() => {})
+        throw err
+      }
+      setCopyOpen(false)
+      toast('Copied to your lists')
+      navigate(`/list/${created.id}`)
+    } catch {
+      toast('Could not copy this list')
+    } finally {
+      setCopying(false)
+    }
+  }
+
   async function openCompare() {
     setCompareOpen(true)
     if (myLists === null) {
@@ -514,9 +546,14 @@ export default function ListPage() {
               </button>
             </>
           ) : (
-            <button className="btn small primary" onClick={openCompare}>
-              Compare
-            </button>
+            <>
+              <button className="btn small" onClick={() => setCopyOpen(true)}>
+                Copy
+              </button>
+              <button className="btn small primary" onClick={openCompare}>
+                Compare
+              </button>
+            </>
           )
         }
       />
@@ -661,6 +698,28 @@ export default function ListPage() {
             </ul>
           </>
         )}
+      </Modal>
+
+      <Modal
+        open={copyOpen}
+        title="Copy to my lists?"
+        onClose={() => !copying && setCopyOpen(false)}
+        actions={
+          <>
+            <button className="btn" disabled={copying} onClick={() => setCopyOpen(false)}>
+              Cancel
+            </button>
+            <button className="btn primary" disabled={copying} onClick={copyToMine}>
+              {copying ? 'Copying...' : 'Copy list'}
+            </button>
+          </>
+        }
+      >
+        <p>
+          This makes your own copy of <b>&ldquo;{list.title}&rdquo;</b> by @{list.owner?.username ?? 'friend'} with its {items.length}{' '}
+          {items.length === 1 ? 'item' : 'items'}, in the same order. You can then re-rank, add and remove whatever you like. Their list
+          won&rsquo;t change.
+        </p>
       </Modal>
 
       {viewing && (
