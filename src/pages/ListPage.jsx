@@ -7,8 +7,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { addItems, deleteItem, deleteList, getItems, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
-import { norm } from '../compare.js'
-import { Empty, Sheet, Spinner, TopBar } from '../components/ui.jsx'
+import { norm, findSimilarItem } from '../compare.js'
+import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
+import { Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
 import ListForm from '../components/ListForm.jsx'
 import { inkOn } from '../templates.js'
 
@@ -21,7 +22,7 @@ const parseLines = (text) =>
     .map((line) => line.replace(/^\s*(?:\d+\s*[.)\-:]|[-*\u2022])\s*/, '').trim())
     .filter(Boolean)
 
-function EditPanel({ item, rank, total, onSave, onDelete, onCancel }) {
+function EditPanel({ item, rank, total, photoBusy, onPhoto, onRemovePhoto, onSave, onDelete, onCancel }) {
   const [title, setTitle] = useState(item.title)
   const [note, setNote] = useState(item.note || '')
   const [moveTo, setMoveTo] = useState(String(rank))
@@ -41,6 +42,31 @@ function EditPanel({ item, rank, total, onSave, onDelete, onCancel }) {
         <span className="label">Note (optional)</span>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why it's here" maxLength={200} autoComplete="off" />
       </label>
+      <div className="field">
+        <span className="label">Photo (optional)</span>
+        <div className="photo-row">
+          {item.image_path && <img className="photo-thumb" src={imageUrl(item.image_path)} alt="" />}
+          <label className={photoBusy ? 'btn small disabled' : 'btn small'}>
+            {photoBusy ? 'Uploading...' : item.image_path ? 'Change photo' : 'Add photo'}
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              disabled={photoBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) onPhoto(item.id, file)
+              }}
+            />
+          </label>
+          {item.image_path && !photoBusy && (
+            <button type="button" className="btn small" onClick={() => onRemovePhoto(item.id)}>
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
       <label className="field">
         <span className="label">Rank (1-{total})</span>
         <input
@@ -66,8 +92,8 @@ function EditPanel({ item, rank, total, onSave, onDelete, onCancel }) {
   )
 }
 
-function SortableRow({ item, rank, total, editing, flash, onToggle, onSave, onDelete }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onView }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: filtering })
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
   return (
     <li
@@ -80,10 +106,16 @@ function SortableRow({ item, rank, total, editing, flash, onToggle, onSave, onDe
         <button className={`rank rank-${rank <= 3 ? rank : 'n'}`} onClick={onToggle} aria-label={`Rank ${rank}, edit ${item.title}`}>
           {rank}
         </button>
+        {item.image_path && (
+          <button className="row-thumb" onClick={() => onView(item)} aria-label={`View photo of ${item.title}`}>
+            <img src={imageUrl(item.image_path)} alt="" loading="lazy" />
+          </button>
+        )}
         <button className="row-text" onClick={onToggle}>
           <span className="row-title">{item.title}</span>
           {item.note && <span className="row-note">{item.note}</span>}
         </button>
+        {!filtering && (
         <button className="drag-handle" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.title}`}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <circle cx="9" cy="6" r="1.7" />
@@ -94,8 +126,21 @@ function SortableRow({ item, rank, total, editing, flash, onToggle, onSave, onDe
             <circle cx="15" cy="18" r="1.7" />
           </svg>
         </button>
+        )}
       </div>
-      {editing && <EditPanel item={item} rank={rank} total={total} onSave={onSave} onDelete={onDelete} onCancel={onToggle} />}
+      {editing && (
+        <EditPanel
+          item={item}
+          rank={rank}
+          total={total}
+          photoBusy={photoBusy}
+          onPhoto={onPhoto}
+          onRemovePhoto={onRemovePhoto}
+          onSave={onSave}
+          onDelete={onDelete}
+          onCancel={onToggle}
+        />
+      )}
     </li>
   )
 }
@@ -116,6 +161,10 @@ export default function ListPage() {
   const [rankDraft, setRankDraft] = useState('')
   const [rankError, setRankError] = useState('')
   const [flashIds, setFlashIds] = useState([])
+  const [query, setQuery] = useState('')
+  const [pending, setPending] = useState(null) // duplicate warning waiting for an answer
+  const [photoBusyId, setPhotoBusyId] = useState(null)
+  const [viewing, setViewing] = useState(null) // item whose photo is enlarged
 
   const itemsRef = useRef([])
   const queue = useRef(Promise.resolve())
@@ -210,15 +259,48 @@ export default function ListPage() {
 
   function removeItem(itemId) {
     setEditingId(null)
+    const gone = itemsRef.current.find((i) => i.id === itemId)
     const remaining = itemsRef.current.filter((i) => i.id !== itemId)
     commit(remaining)
     const ids = remaining.map((i) => i.id)
     enqueue(async () => {
       try {
         await deleteItem(itemId)
+        if (gone?.image_path) removeImages([gone.image_path])
         await reorderItems(id, ids)
       } catch {
         toast('Could not delete that item')
+        load()
+      }
+    })
+  }
+
+  async function setPhoto(itemId, file) {
+    setPhotoBusyId(itemId)
+    try {
+      const blob = await resizeImage(file)
+      const path = await uploadItemImage(user.id, blob)
+      const old = itemsRef.current.find((i) => i.id === itemId)?.image_path
+      await updateItem(itemId, { image_path: path })
+      commit(itemsRef.current.map((i) => (i.id === itemId ? { ...i, image_path: path } : i)))
+      if (old) removeImages([old])
+    } catch {
+      toast('Could not add that photo')
+    } finally {
+      setPhotoBusyId(null)
+    }
+  }
+
+  function removePhoto(itemId) {
+    const old = itemsRef.current.find((i) => i.id === itemId)?.image_path
+    if (!old) return
+    commit(itemsRef.current.map((i) => (i.id === itemId ? { ...i, image_path: null } : i)))
+    enqueue(async () => {
+      try {
+        await updateItem(itemId, { image_path: null })
+        removeImages([old])
+      } catch {
+        toast('Could not remove the photo')
         load()
       }
     })
@@ -274,16 +356,40 @@ export default function ListPage() {
     return { ok: true, rank: Number(raw) }
   }
 
+  // Look for items that already exist (same words, different capitals/punctuation, or a small typo).
+  function findDuplicates(titles) {
+    const out = []
+    for (const t of titles) {
+      const hit = findSimilarItem(t, itemsRef.current)
+      if (hit) out.push({ title: t, existingTitle: hit.item.title, existingRank: hit.index + 1 })
+    }
+    return out
+  }
+
+  function finishAdd(titles, rank, fromDraft) {
+    addTitles(titles, rank)
+    if (fromDraft) setDraft('')
+    setRankDraft('')
+    setRankError('')
+    if (fromDraft) inputRef.current?.focus()
+  }
+
+  function tryAdd(titles, rank, fromDraft) {
+    const clean = titles.map((t) => t.trim()).filter(Boolean)
+    const dupes = findDuplicates(clean)
+    if (dupes.length) {
+      setPending({ titles: clean, rank, fromDraft, dupes })
+      return
+    }
+    finishAdd(clean, rank, fromDraft)
+  }
+
   function handleAdd(e) {
     e.preventDefault()
     if (!draft.trim()) return
     const r = readRank()
     if (!r.ok) return
-    addTitles([draft], r.rank)
-    setDraft('')
-    setRankDraft('')
-    setRankError('')
-    inputRef.current?.focus()
+    tryAdd([draft], r.rank, true)
   }
 
   function handlePaste(e) {
@@ -292,10 +398,25 @@ export default function ListPage() {
       e.preventDefault()
       const r = readRank()
       if (!r.ok) return
-      addTitles(parseLines(text), r.rank)
-      setRankDraft('')
-      setRankError('')
+      tryAdd(parseLines(text), r.rank, false)
     }
+  }
+
+  function answerDuplicate(mode) {
+    const p = pending
+    setPending(null)
+    if (!p || mode === 'cancel') return
+    if (mode === 'skip') {
+      const skip = new Set(p.dupes.map((d) => d.title))
+      const rest = p.titles.filter((t) => !skip.has(t))
+      if (rest.length === 0) {
+        toast('Nothing new to add')
+        return
+      }
+      finishAdd(rest, p.rank, p.fromDraft)
+      return
+    }
+    finishAdd(p.titles, p.rank, p.fromDraft)
   }
 
   async function handleSettings(values) {
@@ -310,8 +431,10 @@ export default function ListPage() {
 
   async function handleDeleteList() {
     if (!window.confirm(`Delete "${list.title}" and everything in it?`)) return
+    const paths = itemsRef.current.map((i) => i.image_path).filter(Boolean)
     try {
       await deleteList(id)
+      removeImages(paths)
       navigate('/', { replace: true })
     } catch {
       toast('Could not delete the list')
@@ -359,6 +482,12 @@ export default function ListPage() {
     )
   }
 
+  const q = query.trim().toLowerCase()
+  const filtering = q.length > 0
+  const shown = filtering
+    ? items.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
+    : items.map((item, i) => ({ item, rank: i + 1 }))
+
   const matchesTitle = (mine) => norm(mine.title) === norm(list.title)
   const sortedMine = myLists ? [...myLists].sort((a, b) => Number(matchesTitle(b)) - Number(matchesTitle(a))) : []
 
@@ -392,25 +521,38 @@ export default function ListPage() {
         }
       />
 
+      {items.length > 3 && (
+        <div className="toolbar">
+          <SearchBox value={query} onChange={setQuery} placeholder="Search this list" />
+        </div>
+      )}
+
       {items.length === 0 ? (
         <Empty title={isOwner ? 'Nothing here yet' : 'This list is empty'}>
           {isOwner && 'Add your first item below. Tip: paste a whole list (one item per line) to add many at once.'}
         </Empty>
+      ) : shown.length === 0 ? (
+        <Empty title="No matches">Nothing in this list matches &ldquo;{query.trim()}&rdquo;.</Empty>
       ) : isOwner ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
           <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
             <ol className="rank-list">
-              {items.map((item, i) => (
+              {shown.map(({ item, rank }) => (
                 <SortableRow
                   key={item.id}
                   item={item}
-                  rank={i + 1}
+                  rank={rank}
                   total={items.length}
                   editing={editingId === item.id}
                   flash={flashIds.includes(item.id)}
+                  filtering={filtering}
+                  photoBusy={photoBusyId === item.id}
                   onToggle={() => setEditingId(editingId === item.id ? null : item.id)}
                   onSave={saveItem}
                   onDelete={removeItem}
+                  onPhoto={setPhoto}
+                  onRemovePhoto={removePhoto}
+                  onView={setViewing}
                 />
               ))}
             </ol>
@@ -418,10 +560,15 @@ export default function ListPage() {
         </DndContext>
       ) : (
         <ol className="rank-list">
-          {items.map((item, i) => (
+          {shown.map(({ item, rank }) => (
             <li key={item.id} className="row">
               <div className="row-main">
-                <span className={`rank rank-${i + 1 <= 3 ? i + 1 : 'n'}`}>{i + 1}</span>
+                <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
+                {item.image_path && (
+                  <button className="row-thumb" onClick={() => setViewing(item)} aria-label={`View photo of ${item.title}`}>
+                    <img src={imageUrl(item.image_path)} alt="" loading="lazy" />
+                  </button>
+                )}
                 <div className="row-text static">
                   <span className="row-title">{item.title}</span>
                   {item.note && <span className="row-note">{item.note}</span>}
@@ -462,7 +609,7 @@ export default function ListPage() {
                 setRankError('')
               }}
               aria-invalid={Boolean(rankError)}
-              placeholder="End"
+              placeholder="Rank"
               aria-label="Rank to insert at (leave empty to add at the end)"
             />
           </label>
@@ -470,6 +617,57 @@ export default function ListPage() {
             Add
           </button>
         </form>
+      )}
+
+      <Modal
+        open={Boolean(pending)}
+        title={pending?.dupes.length > 1 ? 'Some of these are already here' : 'Already in your list'}
+        onClose={() => answerDuplicate('cancel')}
+        actions={
+          pending && (
+            <>
+              <button className="btn" onClick={() => answerDuplicate('cancel')}>
+                Cancel
+              </button>
+              {pending.titles.length > 1 && (
+                <button className="btn" onClick={() => answerDuplicate('skip')}>
+                  Skip duplicates
+                </button>
+              )}
+              <button className="btn primary" onClick={() => answerDuplicate('add')}>
+                {pending.titles.length > 1 ? 'Add all anyway' : 'Add anyway'}
+              </button>
+            </>
+          )
+        }
+      >
+        {pending && pending.titles.length === 1 && (
+          <p>
+            You already have <b>&ldquo;{pending.dupes[0].existingTitle}&rdquo;</b> in spot <b>#{pending.dupes[0].existingRank}</b>. Would
+            you still like to insert <b>&ldquo;{pending.titles[0]}&rdquo;</b> at{' '}
+            <b>#{pending.rank ?? items.length + 1}</b>?
+          </p>
+        )}
+        {pending && pending.titles.length > 1 && (
+          <>
+            <p>These look like items you already have:</p>
+            <ul className="dupe-list">
+              {pending.dupes.slice(0, 6).map((d) => (
+                <li key={d.title}>
+                  &ldquo;{d.title}&rdquo; is like <b>&ldquo;{d.existingTitle}&rdquo;</b> (#{d.existingRank})
+                </li>
+              ))}
+              {pending.dupes.length > 6 && <li className="muted">and {pending.dupes.length - 6} more</li>}
+            </ul>
+          </>
+        )}
+      </Modal>
+
+      {viewing && (
+        <div className="lightbox" onClick={() => setViewing(null)} role="dialog" aria-label={viewing.title}>
+          <img src={imageUrl(viewing.image_path)} alt={viewing.title} />
+          <p>{viewing.title}</p>
+        </div>
       )}
 
       <Sheet open={settingsOpen} onClose={() => setSettingsOpen(false)} title="List settings">

@@ -14,6 +14,7 @@ export const getListsByOwner = async (ownerId) =>
       .from('lists')
       .select('*, list_items(id, title, position)')
       .eq('owner_id', ownerId)
+      .order('position', { ascending: true, nullsFirst: false })
       .order('updated_at', { ascending: false }),
   )
 
@@ -29,17 +30,24 @@ export const getList = async (id) =>
       .maybeSingle(),
   )
 
-export const createList = async ({ ownerId, title, icon, color, visibility }) =>
+export const createList = async ({ ownerId, title, icon, color, visibility, position }) =>
   unwrap(
     await supabase
       .from('lists')
-      .insert({ owner_id: ownerId, title, icon, color, visibility })
+      .insert({ owner_id: ownerId, title, icon, color, visibility, position })
       .select()
       .single(),
   )
 
 export const updateList = async (id, patch) =>
   unwrap(await supabase.from('lists').update(patch).eq('id', id).select().single())
+
+// Save a new order for the person's lists (best first).
+export const reorderLists = async (orderedIds) => {
+  const results = await Promise.all(orderedIds.map((id, i) => supabase.from('lists').update({ position: i }).eq('id', id)))
+  const failed = results.find((r) => r.error)
+  if (failed) throw failed.error
+}
 
 export const deleteList = async (id) => unwrap(await supabase.from('lists').delete().eq('id', id))
 

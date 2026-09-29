@@ -69,6 +69,23 @@ export function sameTopic(t1, t2) {
   return allowed > 0 && Math.abs(a.length - b.length) <= allowed && editDistance(a, b) <= allowed
 }
 
+// Is this the same item as something already in a list? Ignores case, punctuation and small typos.
+// Returns the first matching entry as { item, index } or null.
+export function findSimilarItem(title, items) {
+  const n = norm(title)
+  const c = n.replace(/\s/g, '')
+  const digits = (n.match(/\d+/g) || []).join(',')
+  for (let index = 0; index < items.length; index++) {
+    const n2 = norm(items[index].title)
+    const c2 = n2.replace(/\s/g, '')
+    if (c === c2) return { item: items[index], index }
+    if (digits !== (n2.match(/\d+/g) || []).join(',') || c[0] !== c2[0]) continue
+    const allowed = allowedTypos(Math.max(c.length, c2.length))
+    if (allowed > 0 && Math.abs(c.length - c2.length) <= allowed && editDistance(c, c2) <= allowed) return { item: items[index], index }
+  }
+  return null
+}
+
 const relPos = (rank, n) => (n > 1 ? (rank - 1) / (n - 1) : 0)
 
 // mine / theirs: arrays of items already sorted best-first.

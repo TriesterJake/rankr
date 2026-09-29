@@ -79,3 +79,44 @@ export function Empty({ title, children }) {
     </div>
   )
 }
+
+// Search field with a clear button.
+export function SearchBox({ value, onChange, placeholder = 'Search' }) {
+  return (
+    <div className="searchbox">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        autoComplete="off"
+        autoCorrect="off"
+        enterKeyHint="search"
+      />
+      {value && (
+        <button type="button" className="searchbox-clear" onClick={() => onChange('')} aria-label="Clear search">
+          &times;
+        </button>
+      )}
+    </div>
+  )
+}
+
+// A centered popup for quick questions.
+export function Modal({ open, title, onClose, children, actions }) {
+  if (!open) return null
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <h2>{title}</h2>
+        <div className="modal-body">{children}</div>
+        <div className="modal-actions">{actions}</div>
+      </div>
+    </div>
+  )
+}

@@ -95,12 +95,13 @@ export default function ProfilePage() {
         </Empty>
       ) : (
         <div className="stack">
-          {lists.map((list) => {
+          {lists.map((list, idx) => {
             const match = myMatch(list)
             return (
               <ListCard
                 key={list.id}
                 list={list}
+                rank={idx + 1}
                 footer={
                   match && (
                     <Link className="card-footer-link" to={`/compare/${match.id}/${list.id}`}>

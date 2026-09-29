@@ -3,12 +3,13 @@ import { topItems } from '../api.js'
 import { inkOn } from '../templates.js'
 
 // A list summary card: color stripe, title, item count and the current top 3.
-export default function ListCard({ list, footer }) {
+export default function ListCard({ list, footer, rank }) {
   const count = list.list_items?.length ?? 0
   const top = topItems(list, 3)
   return (
     <div className="list-card" style={{ '--list-color': list.color, '--list-ink': inkOn(list.color) }}>
       <Link to={`/list/${list.id}`} className="list-card-link">
+        {rank != null && <span className={`rank list-card-rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>}
         <div className="list-card-icon">{list.icon || list.title.charAt(0).toUpperCase()}</div>
         <div className="list-card-body">
           <div className="list-card-title">
