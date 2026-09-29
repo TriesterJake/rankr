@@ -373,7 +373,9 @@ export default function ListPage() {
     if (fromDraft) setDraft('')
     setRankDraft('')
     setRankError('')
-    if (fromDraft) inputRef.current?.focus()
+    // put the keyboard away
+    inputRef.current?.blur()
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
   }
 
   function tryAdd(titles, rank, fromDraft) {
