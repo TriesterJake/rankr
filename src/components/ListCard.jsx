@@ -9,8 +9,10 @@ export default function ListCard({ list, footer, rank }) {
   return (
     <div className="list-card" style={{ '--list-color': list.color, '--list-ink': inkOn(list.color) }}>
       <Link to={`/list/${list.id}`} className="list-card-link">
-        {rank != null && <span className={`rank list-card-rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>}
-        <div className="list-card-icon">{list.icon || list.title.charAt(0).toUpperCase()}</div>
+        <div className="list-card-lead">
+          <div className="list-card-icon">{list.icon || list.title.charAt(0).toUpperCase()}</div>
+          {rank != null && <span className={`rank list-card-rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>}
+        </div>
         <div className="list-card-body">
           <div className="list-card-title">
             <h3>{list.title}</h3>

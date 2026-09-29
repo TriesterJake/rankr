@@ -1191,12 +1191,18 @@ button:focus-visible {
 
 /* ---------- List rank badges ---------- */
 
+.list-card-lead {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
 .list-card-rank {
-  align-self: center;
-  width: 34px;
-  height: 34px;
-  font-size: 16px;
-  border-radius: 10px;
+  width: 30px;
+  height: 26px;
+  font-size: 14px;
+  border-radius: 8px;
 }
 .list-card-icon.small {
   width: 36px;
