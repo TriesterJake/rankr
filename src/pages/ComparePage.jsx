@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
@@ -166,11 +166,14 @@ export default function ComparePage() {
               <span className="col-rank">{right}</span>
               <span className="col-diff" />
             </div>
-            {result.pairs.map((p) => {
+            {result.pairs.map((p, idx) => {
               const g = gapLabel(p.relGap, p.myRank === p.theirRank)
               const differs = p.theirTitle.trim().toLowerCase() !== p.title.trim().toLowerCase()
+              const startsSimilar = p.kind === 'similar' && (idx === 0 || result.pairs[idx - 1].kind !== 'similar')
               return (
-                <div className="table-row" key={`${p.aIndex}-${p.bIndex}`}>
+                <Fragment key={`${p.aIndex}-${p.bIndex}`}>
+                {startsSimilar && <div className="table-divider">Similar, but not the same</div>}
+                <div className="table-row">
                   <span className="col-title">
                     {p.title}
                     {p.kind === 'similar' && <span className="pill tag">Similar</span>}
@@ -184,6 +187,7 @@ export default function ComparePage() {
                   <span className="col-rank">#{p.theirRank}</span>
                   <span className={`col-diff ${g.cls}`}>{g.text}</span>
                 </div>
+                </Fragment>
               )
             })}
           </div>

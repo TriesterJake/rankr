@@ -223,7 +223,8 @@ export function compareLists(mine, theirs, vibes = null) {
   const matchedB = new Map(pairs.map((p) => [p.bIndex, p.kind]))
 
   return {
-    pairs: [...pairs].sort((x, y) => x.avgPos - y.avgPos || x.myRank - y.myRank),
+    // real matches first, then the similar-meaning ones; each group goes top of the lists to bottom
+    pairs: [...pairs].sort((x, y) => Number(x.kind === 'similar') - Number(y.kind === 'similar') || x.avgPos - y.avgPos || x.myRank - y.myRank),
     matchedA,
     matchedB,
     sameCount: pairs.filter((p) => p.kind === 'same').length,

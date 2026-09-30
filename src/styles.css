@@ -1316,3 +1316,14 @@ button:focus-visible {
   font-weight: 700;
   text-align: center;
 }
+
+.table-divider {
+  padding: 10px 14px 6px;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
