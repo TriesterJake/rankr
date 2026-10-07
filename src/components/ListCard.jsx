@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { topItems } from '../api.js'
 import { inkOn } from '../templates.js'
+import LikeButton, { Heart } from './LikeButton.jsx'
 
 // A list summary card: color stripe, title, item count and the current top 3.
-export default function ListCard({ list, footer, rank }) {
+export default function ListCard({ list, footer, rank, likeUserId }) {
+  const likes = list.list_likes ?? []
   const count = list.list_items?.length ?? 0
   const top = topItems(list, 3)
   return (
@@ -18,7 +20,13 @@ export default function ListCard({ list, footer, rank }) {
             <h3>{list.title}</h3>
             {list.visibility === 'private' && <span className="pill">Private</span>}
           </div>
-          <p className="muted small">{count === 0 ? 'Empty' : `${count} ${count === 1 ? 'item' : 'items'}`}</p>
+          <p className="muted small">{count === 0 ? 'Empty' : `${count} ${count === 1 ? 'item' : 'items'}`}
+            {!likeUserId && likes.length > 0 && (
+              <span className="like-count">
+                <Heart filled /> {likes.length}
+              </span>
+            )}
+          </p>
           {top.length > 0 && (
             <ol className="mini-top">
               {top.map((item, i) => (
@@ -31,6 +39,16 @@ export default function ListCard({ list, footer, rank }) {
           )}
         </div>
       </Link>
+      {likeUserId && (
+        <div className="card-like">
+          <LikeButton
+            listId={list.id}
+            userId={likeUserId}
+            initialLiked={likes.some((l) => l.user_id === likeUserId)}
+            initialCount={likes.length}
+          />
+        </div>
+      )}
       {footer}
     </div>
   )

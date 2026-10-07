@@ -186,9 +186,8 @@ code {
   font-size: 24px;
   font-weight: 850;
   letter-spacing: -0.02em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.15;
+  overflow-wrap: anywhere; /* long names wrap instead of being cut off */
 }
 .topbar-title p {
   font-size: 13px;
@@ -651,15 +650,15 @@ button:focus-visible {
 }
 .list-card-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 .list-card-title h3 {
   font-size: 18px;
   font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
+  overflow-wrap: anywhere; /* long names wrap instead of being cut off */
 }
 .mini-top {
   list-style: none;
@@ -1326,4 +1325,46 @@ button:focus-visible {
   color: var(--muted);
   background: var(--surface-2);
   border-top: 1px solid var(--border);
+}
+
+/* ---------- Likes ---------- */
+
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+.like-btn.on {
+  color: #ff5c8a;
+  border-color: color-mix(in srgb, #ff5c8a 55%, var(--border));
+  background: color-mix(in srgb, #ff5c8a 14%, var(--surface-2));
+}
+.like-row {
+  padding: 4px 0 8px;
+}
+.card-like {
+  padding: 0 14px 12px;
+}
+.like-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: #ff5c8a;
+  font-weight: 700;
+}
+.like-count svg {
+  width: 14px;
+  height: 14px;
+}
+.pick-row.static {
+  cursor: default;
 }

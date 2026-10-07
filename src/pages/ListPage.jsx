@@ -6,11 +6,12 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
+import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getLikers, getLikes, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
 import ListForm from '../components/ListForm.jsx'
+import LikeButton, { Heart } from '../components/LikeButton.jsx'
 import { inkOn } from '../templates.js'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -164,6 +165,9 @@ export default function ListPage() {
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState(null) // duplicate warning waiting for an answer
   const [photoBusyId, setPhotoBusyId] = useState(null)
+  const [likes, setLikes] = useState(null) // user ids who liked this list; null until loaded
+  const [likersOpen, setLikersOpen] = useState(false)
+  const [likers, setLikers] = useState(null)
   const [copyOpen, setCopyOpen] = useState(false)
   const [copying, setCopying] = useState(false)
   const [viewing, setViewing] = useState(null) // item whose photo is enlarged
@@ -194,7 +198,12 @@ export default function ListPage() {
     try {
       const found = await getList(id)
       setList(found)
-      if (found) commit(await getItems(id))
+      if (found) {
+        commit(await getItems(id))
+        getLikes(id)
+          .then((rows) => setLikes(rows.map((r) => r.user_id)))
+          .catch(() => setLikes([]))
+      }
     } catch {
       toast('Could not load this list')
       setList(null)
@@ -485,6 +494,16 @@ export default function ListPage() {
     }
   }
 
+  async function openLikers() {
+    setLikersOpen(true)
+    setLikers(null)
+    try {
+      setLikers(await getLikers(id))
+    } catch {
+      setLikers([])
+    }
+  }
+
   async function openCompare() {
     setCompareOpen(true)
     if (myLists === null) {
@@ -559,6 +578,21 @@ export default function ListPage() {
           )
         }
       />
+
+      {likes !== null && (isOwner ? likes.length > 0 : true) && (
+        <div className="like-row">
+          {isOwner ? (
+            <button className="like-btn on" onClick={openLikers}>
+              <Heart filled />
+              <span>
+                {likes.length} {likes.length === 1 ? 'like' : 'likes'}
+              </span>
+            </button>
+          ) : (
+            <LikeButton key={list.id} listId={list.id} userId={user.id} initialLiked={likes.includes(user.id)} initialCount={likes.length} />
+          )}
+        </div>
+      )}
 
       {items.length > 3 && (
         <div className="toolbar">
@@ -730,6 +764,22 @@ export default function ListPage() {
           <p>{viewing.title}</p>
         </div>
       )}
+
+      <Sheet open={likersOpen} onClose={() => setLikersOpen(false)} title="Liked by">
+        {likers === null && <Spinner />}
+        {likers && likers.length === 0 && <p className="muted">No likes yet.</p>}
+        {likers && likers.length > 0 && (
+          <div className="pick-list">
+            {likers.map((l) => (
+              <div key={l.user_id} className="pick-row static">
+                <Heart filled />
+                <span className="pick-title">{l.profile?.display_name || l.profile?.username || 'A friend'}</span>
+                {l.profile?.username && <span className="muted small">@{l.profile.username}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Sheet>
 
       <Sheet open={settingsOpen} onClose={() => setSettingsOpen(false)} title="List settings">
         <ListForm initial={list} submitLabel="Save" onSubmit={handleSettings} onDelete={handleDeleteList} />

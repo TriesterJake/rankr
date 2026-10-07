@@ -12,7 +12,7 @@ export const getListsByOwner = async (ownerId) =>
   unwrap(
     await supabase
       .from('lists')
-      .select('*, list_items(id, title, position)')
+      .select('*, list_items(id, title, position), list_likes(user_id)')
       .eq('owner_id', ownerId)
       .order('position', { ascending: true, nullsFirst: false })
       .order('updated_at', { ascending: false }),
@@ -41,6 +41,26 @@ export const createList = async ({ ownerId, title, icon, color, visibility, posi
 
 export const updateList = async (id, patch) =>
   unwrap(await supabase.from('lists').update(patch).eq('id', id).select().single())
+
+// ---------- Likes ----------
+
+export const getLikes = async (listId) =>
+  unwrap(await supabase.from('list_likes').select('user_id, created_at').eq('list_id', listId))
+
+export const getLikers = async (listId) =>
+  unwrap(
+    await supabase
+      .from('list_likes')
+      .select('user_id, created_at, profile:profiles!list_likes_user_id_fkey(id, username, display_name)')
+      .eq('list_id', listId)
+      .order('created_at', { ascending: false }),
+  )
+
+export const likeList = async (listId, userId) =>
+  unwrap(await supabase.from('list_likes').insert({ list_id: listId, user_id: userId }))
+
+export const unlikeList = async (listId, userId) =>
+  unwrap(await supabase.from('list_likes').delete().eq('list_id', listId).eq('user_id', userId))
 
 // Save a new order for the person's lists (best first).
 export const reorderLists = async (orderedIds) => {

@@ -102,6 +102,7 @@ export default function ProfilePage() {
                 key={list.id}
                 list={list}
                 rank={idx + 1}
+                likeUserId={isFriend ? user.id : undefined}
                 footer={
                   match && (
                     <Link className="card-footer-link" to={`/compare/${match.id}/${list.id}`}>
