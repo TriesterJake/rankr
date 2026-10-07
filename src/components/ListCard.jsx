@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { topItems } from '../api.js'
 import { inkOn } from '../templates.js'
+import { imageUrl } from '../images.js'
 import LikeButton, { Heart } from './LikeButton.jsx'
 
 // A list summary card: color stripe, title, item count and the current top 3.
@@ -12,7 +13,9 @@ export default function ListCard({ list, footer, rank, likeUserId }) {
     <div className="list-card" style={{ '--list-color': list.color, '--list-ink': inkOn(list.color) }}>
       <Link to={`/list/${list.id}`} className="list-card-link">
         <div className="list-card-lead">
-          <div className="list-card-icon">{list.icon || list.title.charAt(0).toUpperCase()}</div>
+          <div className="list-card-icon">
+            {list.icon_path ? <img src={imageUrl(list.icon_path)} alt="" loading="lazy" /> : list.icon || list.title.charAt(0).toUpperCase()}
+          </div>
           {rank != null && <span className={`rank list-card-rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>}
         </div>
         <div className="list-card-body">

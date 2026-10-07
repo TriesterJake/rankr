@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import ScrollManager from './ScrollManager.jsx'
 
 const Icon = ({ children }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -9,6 +10,7 @@ const Icon = ({ children }) => (
 export default function Layout() {
   return (
     <div className="app-shell">
+      <ScrollManager />
       <main className="page">
         <Outlet />
       </main>

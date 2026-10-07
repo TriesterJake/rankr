@@ -2,6 +2,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
+import { imageUrl } from '../images.js'
 import { inkOn } from '../templates.js'
 
 function ReorderRow({ list, rank }) {
@@ -17,7 +18,9 @@ function ReorderRow({ list, rank }) {
     <li ref={setNodeRef} style={style} className={`row list-reorder-row${isDragging ? ' dragging' : ''}`}>
       <div className="row-main">
         <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
-        <span className="list-card-icon small">{list.icon || list.title.charAt(0).toUpperCase()}</span>
+        <span className="list-card-icon small">
+          {list.icon_path ? <img src={imageUrl(list.icon_path)} alt="" /> : list.icon || list.title.charAt(0).toUpperCase()}
+        </span>
         <span className="row-text static">
           <span className="row-title">{list.title}</span>
         </span>

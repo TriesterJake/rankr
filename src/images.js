@@ -5,7 +5,7 @@ const BUCKET = 'item-images'
 export const imageUrl = (path) => (path ? supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl : null)
 
 // Shrink a photo before uploading (phone photos are huge). Returns a JPEG Blob.
-export async function resizeImage(file, maxSize = 1280, quality = 0.82) {
+export async function resizeImage(file, maxSize = 1280, quality = 0.82, square = false) {
   let source
   try {
     source = await createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -26,14 +26,24 @@ export async function resizeImage(file, maxSize = 1280, quality = 0.82) {
   }
   const w = source.width || source.naturalWidth
   const h = source.height || source.naturalHeight
-  const scale = Math.min(1, maxSize / Math.max(w, h))
   const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(w * scale))
-  canvas.height = Math.max(1, Math.round(h * scale))
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+  if (square) {
+    // crop the middle square, then shrink it
+    const side = Math.min(w, h)
+    const out = Math.min(maxSize, side)
+    canvas.width = out
+    canvas.height = out
+    ctx.fillRect(0, 0, out, out)
+    ctx.drawImage(source, (w - side) / 2, (h - side) / 2, side, side, 0, 0, out, out)
+  } else {
+    const scale = Math.min(1, maxSize / Math.max(w, h))
+    canvas.width = Math.max(1, Math.round(w * scale))
+    canvas.height = Math.max(1, Math.round(h * scale))
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+  }
   if (source.close) source.close()
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
   if (!blob) throw new Error('could not encode image')

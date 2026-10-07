@@ -30,11 +30,11 @@ export const getList = async (id) =>
       .maybeSingle(),
   )
 
-export const createList = async ({ ownerId, title, icon, color, visibility, position }) =>
+export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position }) =>
   unwrap(
     await supabase
       .from('lists')
-      .insert({ owner_id: ownerId, title, icon, color, visibility, position })
+      .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position })
       .select()
       .single(),
   )
@@ -51,7 +51,7 @@ export const getLikers = async (listId) =>
   unwrap(
     await supabase
       .from('list_likes')
-      .select('user_id, created_at, profile:profiles!list_likes_user_id_fkey(id, username, display_name)')
+      .select('user_id, created_at, profile:profiles!list_likes_user_id_fkey(id, username, display_name, avatar_path)')
       .eq('list_id', listId)
       .order('created_at', { ascending: false }),
   )
@@ -114,7 +114,7 @@ export const searchProfiles = async (query, myId) => {
   const data = unwrap(
     await supabase
       .from('profiles')
-      .select('id, username, display_name')
+      .select('id, username, display_name, avatar_path')
       .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
       .neq('id', myId)
       .limit(10),
@@ -124,7 +124,7 @@ export const searchProfiles = async (query, myId) => {
 
 // ---------- Friends ----------
 
-const PROFILE_FIELDS = 'id, username, display_name'
+const PROFILE_FIELDS = 'id, username, display_name, avatar_path'
 
 export const getFriendships = async (myId) =>
   unwrap(

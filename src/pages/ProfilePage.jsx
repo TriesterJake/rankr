@@ -4,7 +4,7 @@ import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { getFriendships, getListsByOwner, getProfile, removeFriendship } from '../api.js'
 import { sameTopic } from '../compare.js'
-import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import { Avatar, Empty, SearchBox, Spinner, TopBar } from '../components/ui.jsx'
 import ListCard from '../components/ListCard.jsx'
 
 export default function ProfilePage() {
@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [myLists, setMyLists] = useState([])
   const [friendship, setFriendship] = useState(null)
   const [ready, setReady] = useState(false)
+  const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -73,6 +74,16 @@ export default function ProfilePage() {
   }
 
   const isFriend = friendship?.status === 'accepted'
+  const q = query.trim().toLowerCase()
+  const visible = q
+    ? lists
+        .map((list) => {
+          const titleHit = list.title.toLowerCase().includes(q)
+          const itemHits = (list.list_items || []).filter((it) => it.title.toLowerCase().includes(q)).sort((a, b) => a.position - b.position)
+          return titleHit || itemHits.length ? { list, itemHits } : null
+        })
+        .filter(Boolean)
+    : null
   const myMatch = (list) => myLists.find((m) => sameTopic(m.title, list.title))
 
   return (
@@ -94,27 +105,51 @@ export default function ProfilePage() {
           {isFriend ? `@${profile.username} hasn't shared any lists yet.` : 'Once you are friends you can see the lists they share.'}
         </Empty>
       ) : (
-        <div className="stack">
-          {lists.map((list, idx) => {
-            const match = myMatch(list)
-            return (
-              <ListCard
-                key={list.id}
-                list={list}
-                rank={idx + 1}
-                likeUserId={isFriend ? user.id : undefined}
-                footer={
-                  match && (
-                    <Link className="card-footer-link" to={`/compare/${match.id}/${list.id}`}>
-                      <span>You both have this list</span>
-                      <b>Compare &rarr;</b>
-                    </Link>
-                  )
-                }
-              />
-            )
-          })}
-        </div>
+        <>
+          {lists.length > 0 && (
+            <div className="toolbar">
+              <SearchBox value={query} onChange={setQuery} placeholder={`Search @${profile.username}'s lists and items`} />
+            </div>
+          )}
+          {visible && visible.length === 0 && <Empty title="No matches">Nothing here matches &ldquo;{query.trim()}&rdquo;.</Empty>}
+          <div className="stack">
+            {(visible || lists.map((list) => ({ list, itemHits: [] }))).map(({ list, itemHits }) => {
+              const match = myMatch(list)
+              return (
+                <ListCard
+                  key={list.id}
+                  list={list}
+                  rank={lists.indexOf(list) + 1}
+                  likeUserId={isFriend ? user.id : undefined}
+                  footer={
+                    (itemHits.length > 0 || match) && (
+                      <>
+                        {itemHits.length > 0 && (
+                          <div className="card-match">
+                            <span className="muted">Found in this list:</span>{' '}
+                            {itemHits.slice(0, 3).map((it, i) => (
+                              <span key={it.id}>
+                                {i > 0 && ', '}
+                                <b>#{it.position + 1}</b> {it.title}
+                              </span>
+                            ))}
+                            {itemHits.length > 3 && <span className="muted"> +{itemHits.length - 3} more</span>}
+                          </div>
+                        )}
+                        {match && (
+                          <Link className="card-footer-link" to={`/compare/${match.id}/${list.id}`}>
+                            <span>You both have this list</span>
+                            <b>Compare &rarr;</b>
+                          </Link>
+                        )}
+                      </>
+                    )
+                  }
+                />
+              )
+            })}
+          </div>
+        </>
       )}
 
       {isFriend && (

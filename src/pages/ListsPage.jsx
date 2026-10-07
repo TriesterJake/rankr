@@ -36,8 +36,10 @@ export default function ListsPage() {
       const list = await createList({ ownerId: user.id, position: lists ? lists.length : 0, ...values })
       setCreating(false)
       navigate(`/list/${list.id}`)
+      return true
     } catch {
       toast('Could not create the list')
+      return false
     }
   }
 

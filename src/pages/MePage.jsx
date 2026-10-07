@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { updateProfile } from '../api.js'
+import { removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, TopBar } from '../components/ui.jsx'
 
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
@@ -11,6 +12,7 @@ export default function MePage() {
   const toast = useToast()
   const [name, setName] = useState(profile?.display_name ?? '')
   const [busy, setBusy] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState(false)
 
   // the profile can finish loading after this page first renders
   useEffect(() => {
@@ -33,6 +35,39 @@ export default function MePage() {
     }
   }
 
+  async function changePhoto(file) {
+    if (!profile) return
+    setPhotoBusy(true)
+    try {
+      const blob = await resizeImage(file, 512, 0.85, true)
+      const path = await uploadItemImage(profile.id, blob)
+      const old = profile.avatar_path
+      await updateProfile(profile.id, { avatar_path: path })
+      await refreshProfile()
+      if (old) removeImages([old])
+      toast('Profile picture updated')
+    } catch {
+      toast('Could not update your picture')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  async function removePhoto() {
+    if (!profile?.avatar_path) return
+    setPhotoBusy(true)
+    try {
+      const old = profile.avatar_path
+      await updateProfile(profile.id, { avatar_path: null })
+      await refreshProfile()
+      removeImages([old])
+    } catch {
+      toast('Could not remove your picture')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
   return (
     <>
       <TopBar title="Me" />
@@ -44,6 +79,28 @@ export default function MePage() {
           <p className="muted small">@{profile?.username}</p>
           <p className="muted small">{user?.email}</p>
         </div>
+      </div>
+
+      <div className="photo-row avatar-actions">
+        <label className={photoBusy ? 'btn small disabled' : 'btn small'}>
+          {photoBusy ? 'Saving...' : profile?.avatar_path ? 'Change picture' : 'Add profile picture'}
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            disabled={photoBusy}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) changePhoto(file)
+            }}
+          />
+        </label>
+        {profile?.avatar_path && !photoBusy && (
+          <button type="button" className="btn small" onClick={removePhoto}>
+            Remove
+          </button>
+        )}
       </div>
 
       <form className="form card" onSubmit={save}>

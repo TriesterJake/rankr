@@ -9,7 +9,7 @@ import { useToast } from '../toast.jsx'
 import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getLikers, getLikes, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
-import { Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
+import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
 import ListForm from '../components/ListForm.jsx'
 import LikeButton, { Heart } from '../components/LikeButton.jsx'
 import { inkOn } from '../templates.js'
@@ -437,14 +437,16 @@ export default function ListPage() {
       const updated = await updateList(id, values)
       setList((prev) => ({ ...prev, ...updated }))
       setSettingsOpen(false)
+      return true
     } catch {
       toast('Could not save settings')
+      return false
     }
   }
 
   async function handleDeleteList() {
     if (!window.confirm(`Delete "${list.title}" and everything in it?`)) return
-    const paths = itemsRef.current.map((i) => i.image_path).filter(Boolean)
+    const paths = [...itemsRef.current.map((i) => i.image_path), list.icon_path].filter(Boolean)
     try {
       await deleteList(id)
       removeImages(paths)
@@ -774,7 +776,7 @@ export default function ListPage() {
           <div className="pick-list">
             {likers.map((l) => (
               <div key={l.user_id} className="pick-row static">
-                <Heart filled />
+                <Avatar profile={l.profile} size={32} />
                 <span className="pick-title">{l.profile?.display_name || l.profile?.username || 'A friend'}</span>
                 {l.profile?.username && <span className="muted small">@{l.profile.username}</span>}
               </div>

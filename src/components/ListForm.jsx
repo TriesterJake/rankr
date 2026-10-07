@@ -1,8 +1,16 @@
-import { useState } from 'react'
-import { COLORS, TEMPLATES, randomColor } from '../templates.js'
+import { useRef, useState } from 'react'
+import { useAuth } from '../AuthContext.jsx'
+import { useToast } from '../toast.jsx'
+import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
+import { COLORS, TEMPLATES, randomColor, inkOn } from '../templates.js'
 
 // Used both to create a list and to edit its settings.
 export default function ListForm({ initial, submitLabel, showTemplates, onSubmit, onDelete }) {
+  const { user } = useAuth()
+  const toast = useToast()
+  const [iconPath, setIconPath] = useState(initial?.icon_path ?? null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const unsaved = useRef(null) // a picture uploaded in this form that isn't saved to the list yet
   const [title, setTitle] = useState(initial?.title ?? '')
   const [icon, setIcon] = useState(initial?.icon ?? '')
   const [color, setColor] = useState(() => initial?.color ?? randomColor())
@@ -16,10 +24,40 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
     if (!clean || busy) return
     setBusy(true)
     try {
-      await onSubmit({ title: clean, icon: icon.trim().slice(0, 4), color, visibility })
+      const ok = await onSubmit({ title: clean, icon: icon.trim().slice(0, 4), icon_path: iconPath, color, visibility })
+      if (ok !== false) {
+        unsaved.current = null
+        // the old picture is no longer used once the change is saved
+        if (initial?.icon_path && initial.icon_path !== iconPath) removeImages([initial.icon_path])
+      }
     } finally {
       setBusy(false)
     }
+  }
+
+  function dropUnsaved() {
+    if (unsaved.current && unsaved.current !== initial?.icon_path) removeImages([unsaved.current])
+    unsaved.current = null
+  }
+
+  async function pickPhoto(file) {
+    setPhotoBusy(true)
+    try {
+      const blob = await resizeImage(file, 384, 0.85, true)
+      const path = await uploadItemImage(user.id, blob)
+      dropUnsaved()
+      unsaved.current = path
+      setIconPath(path)
+    } catch {
+      toast('Could not add that picture')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  function clearPhoto() {
+    dropUnsaved()
+    setIconPath(null)
   }
 
   return (
@@ -53,6 +91,37 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
         <span className="label">Icon (optional)</span>
         <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="A letter or emoji, e.g. a favorite emoji" maxLength={4} />
       </label>
+
+      <div className="field">
+        <span className="label">Icon picture (optional)</span>
+        <div className="photo-row">
+          {iconPath && (
+            <span className="icon-preview" style={{ background: color, color: inkOn(color) }}>
+              <img src={imageUrl(iconPath)} alt="" />
+            </span>
+          )}
+          <label className={photoBusy ? 'btn small disabled' : 'btn small'}>
+            {photoBusy ? 'Uploading...' : iconPath ? 'Change picture' : 'Add picture'}
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              disabled={photoBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) pickPhoto(file)
+              }}
+            />
+          </label>
+          {iconPath && !photoBusy && (
+            <button type="button" className="btn small" onClick={clearPhoto}>
+              Remove
+            </button>
+          )}
+        </div>
+        {iconPath && <span className="muted small">A picture is used instead of the letter or emoji.</span>}
+      </div>
 
       <div className="field">
         <span className="label">Color</span>
@@ -90,7 +159,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
         </div>
       </div>
 
-      <button className="btn primary block" disabled={busy || !title.trim()}>
+      <button className="btn primary block" disabled={busy || photoBusy || !title.trim()}>
         {busy ? 'Saving...' : submitLabel}
       </button>
 
