@@ -30,29 +30,28 @@ export default function ScrollManager() {
       window.scrollTo(0, 0)
       return undefined
     }
-    // The page's content may still be loading, so keep trying until it is tall enough to scroll there.
+    // The page's content may still be loading (on a slow connection that can take several seconds),
+    // so keep trying until the page is tall enough to scroll to the saved spot.
     restoring.current = true
-    let frame = 0
-    let tries = 0
+    const startedAt = Date.now()
+    let timer = 0
     const stop = () => {
       restoring.current = false
-      cancelAnimationFrame(frame)
+      clearInterval(timer)
       window.removeEventListener('wheel', stop)
       window.removeEventListener('touchstart', stop)
       window.removeEventListener('keydown', stop)
     }
     const attempt = () => {
       window.scrollTo(0, y)
-      if (Math.abs(window.scrollY - y) < 2 || tries++ > 120) {
-        stop()
-        return
-      }
-      frame = requestAnimationFrame(attempt)
+      if (Math.abs(window.scrollY - y) < 2 || Date.now() - startedAt > 20000) stop()
     }
+    // the person grabbing the screen means they want to scroll on their own
     window.addEventListener('wheel', stop, { passive: true })
     window.addEventListener('touchstart', stop, { passive: true })
     window.addEventListener('keydown', stop)
     attempt()
+    timer = setInterval(attempt, 50)
     return stop
   }, [key, type])
 
