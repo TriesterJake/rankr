@@ -1401,3 +1401,20 @@ button:focus-visible {
 .avatar-actions {
   margin: -4px 0 14px;
 }
+
+.version-note {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.avatar-zoom {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: zoom-in;
+}
+.list-card-icon.zoomable {
+  cursor: zoom-in;
+}

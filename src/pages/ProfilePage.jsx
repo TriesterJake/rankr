@@ -91,7 +91,7 @@ export default function ProfilePage() {
       <TopBar title={profile.display_name || profile.username} subtitle={`@${profile.username}`} back />
 
       <div className="profile-head">
-        <Avatar profile={profile} size={64} />
+        <Avatar profile={profile} size={64} zoom />
         <div>
           <b>{profile.display_name || profile.username}</b>
           <p className="muted small">

@@ -1,12 +1,31 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { imageUrl } from '../images.js'
 
 const AVATAR_COLORS = ['#7c5cff', '#ff5c8a', '#ff9f43', '#5ac86a', '#2ec4b6', '#4dabf7', '#ef476f']
 
-export function Avatar({ profile, size = 40 }) {
+// Full-screen look at a picture. Tap anywhere (or press Escape) to close.
+export function Lightbox({ src, caption, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="lightbox" onClick={onClose} role="dialog" aria-label={caption || 'Picture'}>
+      <img src={src} alt={caption || ''} />
+      {caption && <p>{caption}</p>}
+    </div>
+  )
+}
+
+// zoom: tapping a profile picture opens it full size.
+export function Avatar({ profile, size = 40, zoom = false }) {
+  const [open, setOpen] = useState(false)
   const name = profile?.display_name || profile?.username || '?'
   const seed = [...(profile?.username || name)].reduce((sum, ch) => sum + ch.charCodeAt(0), 0)
-  return (
+  const canZoom = zoom && Boolean(profile?.avatar_path)
+  const circle = (
     <div
       className="avatar"
       style={{
@@ -15,10 +34,19 @@ export function Avatar({ profile, size = 40 }) {
         fontSize: size * 0.42,
         background: AVATAR_COLORS[seed % AVATAR_COLORS.length],
       }}
-      aria-hidden="true"
+      aria-hidden={canZoom ? undefined : 'true'}
     >
       {profile?.avatar_path ? <img src={imageUrl(profile.avatar_path)} alt="" loading="lazy" /> : name.trim().charAt(0).toUpperCase()}
     </div>
+  )
+  if (!canZoom) return circle
+  return (
+    <>
+      <button type="button" className="avatar-zoom" onClick={() => setOpen(true)} aria-label={`View ${name}'s profile picture`}>
+        {circle}
+      </button>
+      {open && <Lightbox src={imageUrl(profile.avatar_path)} caption={name} onClose={() => setOpen(false)} />}
+    </>
   )
 }
 

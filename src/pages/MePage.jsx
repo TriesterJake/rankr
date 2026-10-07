@@ -39,7 +39,7 @@ export default function MePage() {
     if (!profile) return
     setPhotoBusy(true)
     try {
-      const blob = await resizeImage(file, 512, 0.85, true)
+      const blob = await resizeImage(file, 900, 0.82)
       const path = await uploadItemImage(profile.id, blob)
       const old = profile.avatar_path
       await updateProfile(profile.id, { avatar_path: path })
@@ -73,7 +73,7 @@ export default function MePage() {
       <TopBar title="Me" />
 
       <div className="profile-head">
-        <Avatar profile={profile} size={64} />
+        <Avatar profile={profile} size={64} zoom />
         <div>
           <b>{profile?.display_name || profile?.username}</b>
           <p className="muted small">@{profile?.username}</p>

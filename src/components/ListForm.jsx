@@ -43,7 +43,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
   async function pickPhoto(file) {
     setPhotoBusy(true)
     try {
-      const blob = await resizeImage(file, 384, 0.85, true)
+      const blob = await resizeImage(file, 900, 0.82)
       const path = await uploadItemImage(user.id, blob)
       dropUnsaved()
       unsaved.current = path
