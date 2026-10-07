@@ -1348,7 +1348,13 @@ button:focus-visible {
   background: color-mix(in srgb, #ff5c8a 14%, var(--surface-2));
 }
 .like-row {
-  padding: 4px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 10px;
+}
+.like-row .spacer {
+  flex: 1;
 }
 .card-like {
   padding: 0 14px 12px;

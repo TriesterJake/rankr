@@ -566,31 +566,33 @@ export default function ListPage() {
                 </svg>
               </button>
             </>
-          ) : (
-            <>
-              <button className="btn small" onClick={() => setCopyOpen(true)}>
-                Copy
-              </button>
-              <button className="btn small primary" onClick={openCompare}>
-                Compare
-              </button>
-            </>
-          )
+          ) : null
         }
       />
 
-      {likes !== null && (isOwner ? likes.length > 0 : true) && (
+      {isOwner && likes !== null && likes.length > 0 && (
         <div className="like-row">
-          {isOwner ? (
-            <button className="like-btn on" onClick={openLikers}>
-              <Heart filled />
-              <span>
-                {likes.length} {likes.length === 1 ? 'like' : 'likes'}
-              </span>
-            </button>
-          ) : (
+          <button className="like-btn on" onClick={openLikers}>
+            <Heart filled />
+            <span>
+              {likes.length} {likes.length === 1 ? 'like' : 'likes'}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {!isOwner && (
+        <div className="like-row">
+          {likes !== null && (
             <LikeButton key={list.id} listId={list.id} userId={user.id} initialLiked={likes.includes(user.id)} initialCount={likes.length} />
           )}
+          <span className="spacer" />
+          <button className="btn small" onClick={() => setCopyOpen(true)}>
+            Copy
+          </button>
+          <button className="btn small primary" onClick={openCompare}>
+            Compare
+          </button>
         </div>
       )}
 
