@@ -307,13 +307,13 @@ export default function ActivityPage() {
 
       <PushCard status={pushStatus} busy={pushBusy} onEnable={turnOn} onDisable={turnOff} />
 
-      <div className="seg" role="tablist" aria-label="Activity sections">
-        <button role="tab" aria-selected={tab === 'updates'} className={tab === 'updates' ? 'seg-btn active' : 'seg-btn'} onClick={() => setTab('updates')}>
+      <div className="atabs" role="tablist" aria-label="Activity sections">
+        <button role="tab" aria-selected={tab === 'updates'} className={tab === 'updates' ? 'atabs-btn active' : 'atabs-btn'} onClick={() => setTab('updates')}>
           Updates
         </button>
-        <button role="tab" aria-selected={tab === 'requests'} className={tab === 'requests' ? 'seg-btn active' : 'seg-btn'} onClick={() => setTab('requests')}>
+        <button role="tab" aria-selected={tab === 'requests'} className={tab === 'requests' ? 'atabs-btn active' : 'atabs-btn'} onClick={() => setTab('requests')}>
           Friend requests
-          {incoming.length > 0 && <span className="seg-badge">{incoming.length}</span>}
+          {incoming.length > 0 && <span className="atabs-badge">{incoming.length}</span>}
         </button>
       </div>
 
@@ -323,7 +323,10 @@ export default function ActivityPage() {
         <>
           {incoming.length === 0 && outgoing.length === 0 && (
             <Empty title="No friend requests">
-              When someone asks to be your friend, it shows up here. You can add people from the <Link to="/friends">Friends</Link> tab.
+              When someone asks to be your friend, it shows up here.
+              <Link className="empty-link" to="/friends">
+                Find friends
+              </Link>
             </Empty>
           )}
           {incoming.length > 0 && (

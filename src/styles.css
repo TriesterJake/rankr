@@ -1602,7 +1602,7 @@ button:focus-visible {
 
 /* ---------- Activity: requests tab, push card ---------- */
 
-.seg {
+.atabs {
   display: flex;
   gap: 4px;
   padding: 4px;
@@ -1611,7 +1611,7 @@ button:focus-visible {
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
-.seg-btn {
+.atabs-btn {
   flex: 1;
   display: inline-flex;
   align-items: center;
@@ -1625,12 +1625,12 @@ button:focus-visible {
   font-weight: 700;
   font-size: 15px;
 }
-.seg-btn.active {
+.atabs-btn.active {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
-.seg-badge {
+.atabs-badge {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
@@ -1705,4 +1705,18 @@ button:focus-visible {
 .push-foot {
   text-align: center;
   padding: 16px 0 4px;
+}
+
+.empty-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
 }
