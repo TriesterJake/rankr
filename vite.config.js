@@ -26,6 +26,8 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        // phone-notification code (push + tap handling) lives in public/push-sw.js
+        importScripts: ['push-sw.js'],
         // the small word file behind "similar vibe" matching: keep it after the first download
         runtimeCaching: [
           {

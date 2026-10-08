@@ -84,6 +84,16 @@ export default function ProfilePage() {
         })
         .filter(Boolean)
     : null
+  // my one favorite among this friend's lists (from the embedded favorites)
+  const myFavorite = lists.find((l) => (l.list_favorites || []).some((f) => f.user_id === user.id)) || null
+  function onFavoriteChange(listId, on) {
+    setLists((cur) =>
+      cur.map((l) => {
+        const rest = (l.list_favorites || []).filter((f) => f.user_id !== user.id)
+        return { ...l, list_favorites: on && l.id === listId ? [...rest, { user_id: user.id }] : rest }
+      }),
+    )
+  }
   const myMatch = (list) => myLists.find((m) => sameTopic(m.title, list.title))
 
   return (
@@ -121,6 +131,15 @@ export default function ProfilePage() {
                   list={list}
                   rank={lists.indexOf(list) + 1}
                   likeUserId={isFriend ? user.id : undefined}
+                  favorite={
+                    isFriend
+                      ? {
+                          ownerName: `@${profile.username}`,
+                          other: myFavorite && myFavorite.id !== list.id ? { id: myFavorite.id, title: myFavorite.title } : null,
+                          onChange: onFavoriteChange,
+                        }
+                      : undefined
+                  }
                   footer={
                     (itemHits.length > 0 || match) && (
                       <>

@@ -1191,18 +1191,20 @@ button:focus-visible {
 
 /* ---------- List rank badges ---------- */
 
-.list-card-lead {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+.list-card-link {
+  position: relative;
 }
 .list-card-rank {
-  width: 30px;
-  height: 26px;
-  font-size: 14px;
-  border-radius: 8px;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 32px;
+  font-size: 16px;
+  border-radius: 10px;
+}
+.list-card-body.has-rank {
+  padding-right: 40px; /* leave room for the rank badge in the corner */
 }
 .list-card-icon.small {
   width: 36px;
@@ -1417,4 +1419,290 @@ button:focus-visible {
 }
 .list-card-icon.zoomable {
   cursor: zoom-in;
+}
+
+/* ---------- Favorites, reactions, activity ---------- */
+
+.like-btn.fav.on {
+  color: #ffb02e;
+  border-color: color-mix(in srgb, #ffb02e 55%, var(--border));
+  background: color-mix(in srgb, #ffb02e 14%, var(--surface-2));
+}
+.card-like {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.like-row {
+  flex-wrap: wrap;
+}
+.fav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffb02e;
+}
+.fav-pill svg,
+.fav-count svg {
+  width: 13px;
+  height: 13px;
+}
+.like-count.fav-count {
+  color: #ffb02e;
+}
+
+.tab-icon {
+  position: relative;
+  display: inline-flex;
+}
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.row-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 10px 62px;
+}
+.reaction-chip,
+.reaction-add,
+.reaction-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+.reaction-chip.mine {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+}
+.reaction-add,
+.reaction-who {
+  color: var(--muted);
+}
+.reaction-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+.reaction-picker button {
+  width: 42px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 20px;
+}
+.reaction-picker button.mine {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+}
+.activity-row {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.activity-row.new {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.activity-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+}
+.activity-avatar {
+  position: relative;
+  flex: none;
+}
+.activity-glyph {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 2px var(--surface);
+  font-size: 12px;
+}
+.activity-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.activity-time {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.activity-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b30;
+}
+.activity-x {
+  flex: none;
+  width: 44px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+}
+.activity-actions {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0 8px;
+}
+
+/* ---------- Activity: requests tab, push card ---------- */
+
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 4px 0 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.seg-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 15px;
+}
+.seg-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.seg-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 20px;
+}
+.request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.request-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1.5px solid color-mix(in srgb, var(--accent) 70%, var(--border));
+}
+.request-card.muted-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.request-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+.request-who > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.request-actions {
+  display: flex;
+  gap: 8px;
+}
+.request-actions .btn {
+  flex: 1;
+}
+.section-label {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.push-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+}
+.push-card p {
+  margin-top: 2px;
+}
+.push-foot {
+  text-align: center;
+  padding: 16px 0 4px;
 }

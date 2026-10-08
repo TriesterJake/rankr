@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getLikers, getLikes, getList, getListsByOwner, reorderItems, updateItem, updateList } from '../api.js'
+import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getFavoriters, getLikers, getLikes, getList, getListsByOwner, getMyFavorite, getReactions, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
 import ListForm from '../components/ListForm.jsx'
 import LikeButton, { Heart } from '../components/LikeButton.jsx'
+import FavoriteButton, { Star } from '../components/FavoriteButton.jsx'
+import ReactionBar from '../components/ReactionBar.jsx'
 import { inkOn } from '../templates.js'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -93,7 +95,7 @@ function EditPanel({ item, rank, total, photoBusy, onPhoto, onRemovePhoto, onSav
   )
 }
 
-function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onView }) {
+function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onView }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: filtering })
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
   return (
@@ -129,6 +131,7 @@ function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, 
         </button>
         )}
       </div>
+      <ReactionBar reactions={reactions} userId={userId} isOwner onReact={onReact} onWho={onWho} />
       {editing && (
         <EditPanel
           item={item}
@@ -171,6 +174,15 @@ export default function ListPage() {
   const [copyOpen, setCopyOpen] = useState(false)
   const [copying, setCopying] = useState(false)
   const [viewing, setViewing] = useState(null) // item whose photo is enlarged
+  const [favs, setFavs] = useState(null) // user ids who made this their favorite
+  const [myFav, setMyFav] = useState(null) // my current favorite among this owner's lists: { id, title } | null
+  const [reactions, setReactions] = useState([]) // { item_id, user_id, emoji }
+  const [whoItem, setWhoItem] = useState(null) // item whose reactions are open
+  const [whoRows, setWhoRows] = useState(null)
+  const [likersMode, setLikersMode] = useState('likes')
+  const [searchParams] = useSearchParams()
+  const focusItem = searchParams.get('item')
+  const focused = useRef(null)
 
   const itemsRef = useRef([])
   const queue = useRef(Promise.resolve())
@@ -203,20 +215,42 @@ export default function ListPage() {
         getLikes(id)
           .then((rows) => setLikes(rows.map((r) => r.user_id)))
           .catch(() => setLikes([]))
+        getFavoriters(id)
+          .then((rows) => setFavs(rows.map((r) => r.user_id)))
+          .catch(() => setFavs([]))
+        getReactions(id)
+          .then(setReactions)
+          .catch(() => setReactions([]))
+        if (found.owner_id !== user.id) {
+          getMyFavorite(found.owner_id, user.id)
+            .then((row) => setMyFav(row?.list ? { id: row.list.id, title: row.list.title } : null))
+            .catch(() => setMyFav(null))
+        }
       }
     } catch {
       toast('Could not load this list')
       setList(null)
     }
-  }, [id, commit, toast])
+  }, [id, commit, toast, user.id])
 
   useEffect(() => {
+    focused.current = null
     setList(undefined)
     setEditingId(null)
     load()
   }, [load])
 
   const isOwner = Boolean(list && list.owner_id === user.id)
+
+  // coming from a "reacted" notification: scroll to that item and flash it once
+  useEffect(() => {
+    if (!focusItem || focused.current === focusItem || !items.some((i) => i.id === focusItem)) return
+    focused.current = focusItem
+    setFlashIds([focusItem])
+    const t = setTimeout(() => setFlashIds([]), 2000)
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${focusItem}`)?.scrollIntoView({ block: 'center' })))
+    return () => clearTimeout(t)
+  }, [focusItem, items])
 
   // ---------- editing actions (owner only) ----------
 
@@ -496,14 +530,45 @@ export default function ListPage() {
     }
   }
 
-  async function openLikers() {
+  async function openLikers(mode = 'likes') {
+    setLikersMode(mode)
     setLikersOpen(true)
     setLikers(null)
     try {
-      setLikers(await getLikers(id))
+      setLikers(await (mode === 'favorites' ? getFavoriters(id) : getLikers(id)))
     } catch {
       setLikers([])
     }
+  }
+
+  async function react(itemId, emoji) {
+    const before = reactions
+    const had = reactions.find((r) => r.item_id === itemId && r.user_id === user.id)
+    const without = reactions.filter((r) => !(r.item_id === itemId && r.user_id === user.id))
+    setReactions(had?.emoji === emoji ? without : [...without, { item_id: itemId, user_id: user.id, emoji }])
+    try {
+      await reactToItem(itemId, emoji)
+    } catch {
+      setReactions(before)
+      toast('Could not save your reaction')
+    }
+  }
+
+  async function openWho(item) {
+    setWhoItem(item)
+    setWhoRows(null)
+    try {
+      setWhoRows(await getReactors(item.id))
+    } catch {
+      setWhoRows([])
+    }
+  }
+
+  const reactionsFor = (itemId) => reactions.filter((r) => r.item_id === itemId)
+
+  function onFavoriteChange(on) {
+    setFavs((cur) => (cur ? (on ? [...cur.filter((u) => u !== user.id), user.id] : cur.filter((u) => u !== user.id)) : cur))
+    setMyFav(on ? { id: list.id, title: list.title } : null)
   }
 
   async function openCompare() {
@@ -572,14 +637,24 @@ export default function ListPage() {
         }
       />
 
-      {isOwner && likes !== null && likes.length > 0 && (
+      {isOwner && ((likes !== null && likes.length > 0) || (favs !== null && favs.length > 0)) && (
         <div className="like-row">
-          <button className="like-btn on" onClick={openLikers}>
-            <Heart filled />
-            <span>
-              {likes.length} {likes.length === 1 ? 'like' : 'likes'}
-            </span>
-          </button>
+          {likes !== null && likes.length > 0 && (
+            <button className="like-btn on" onClick={() => openLikers('likes')}>
+              <Heart filled />
+              <span>
+                {likes.length} {likes.length === 1 ? 'like' : 'likes'}
+              </span>
+            </button>
+          )}
+          {favs !== null && favs.length > 0 && (
+            <button className="like-btn fav on" onClick={() => openLikers('favorites')}>
+              <Star filled />
+              <span>
+                {favs.length} {favs.length === 1 ? 'favorite' : 'favorites'}
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -587,6 +662,16 @@ export default function ListPage() {
         <div className="like-row">
           {likes !== null && (
             <LikeButton key={list.id} listId={list.id} userId={user.id} initialLiked={likes.includes(user.id)} initialCount={likes.length} />
+          )}
+          {favs !== null && (
+            <FavoriteButton
+              key={`fav-${list.id}`}
+              list={{ id: list.id, title: list.title }}
+              ownerName={`@${list.owner?.username ?? 'friend'}`}
+              isFavorite={favs.includes(user.id)}
+              other={myFav && myFav.id !== list.id ? myFav : null}
+              onChange={onFavoriteChange}
+            />
           )}
           <span className="spacer" />
           <button className="btn small" onClick={() => setCopyOpen(true)}>
@@ -624,6 +709,10 @@ export default function ListPage() {
                   flash={flashIds.includes(item.id)}
                   filtering={filtering}
                   photoBusy={photoBusyId === item.id}
+                  reactions={reactionsFor(item.id)}
+                  userId={user.id}
+                  onReact={() => {}}
+                  onWho={() => openWho(item)}
                   onToggle={() => setEditingId(editingId === item.id ? null : item.id)}
                   onSave={saveItem}
                   onDelete={removeItem}
@@ -638,7 +727,7 @@ export default function ListPage() {
       ) : (
         <ol className="rank-list">
           {shown.map(({ item, rank }) => (
-            <li key={item.id} className="row">
+            <li key={item.id} id={`item-${item.id}`} className={flashIds.includes(item.id) ? 'row flash' : 'row'}>
               <div className="row-main">
                 <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
                 {item.image_path && (
@@ -651,6 +740,7 @@ export default function ListPage() {
                   {item.note && <span className="row-note">{item.note}</span>}
                 </div>
               </div>
+              <ReactionBar reactions={reactionsFor(item.id)} userId={user.id} onReact={(e) => react(item.id, e)} onWho={() => {}} />
             </li>
           ))}
         </ol>
@@ -769,9 +859,9 @@ export default function ListPage() {
         </div>
       )}
 
-      <Sheet open={likersOpen} onClose={() => setLikersOpen(false)} title="Liked by">
+      <Sheet open={likersOpen} onClose={() => setLikersOpen(false)} title={likersMode === 'favorites' ? 'Favorited by' : 'Liked by'}>
         {likers === null && <Spinner />}
-        {likers && likers.length === 0 && <p className="muted">No likes yet.</p>}
+        {likers && likers.length === 0 && <p className="muted">{likersMode === 'favorites' ? 'No favorites yet.' : 'No likes yet.'}</p>}
         {likers && likers.length > 0 && (
           <div className="pick-list">
             {likers.map((l) => (
@@ -779,6 +869,22 @@ export default function ListPage() {
                 <Avatar profile={l.profile} size={32} />
                 <span className="pick-title">{l.profile?.display_name || l.profile?.username || 'A friend'}</span>
                 {l.profile?.username && <span className="muted small">@{l.profile.username}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet open={Boolean(whoItem)} onClose={() => setWhoItem(null)} title={whoItem ? `Reactions to ${whoItem.title}` : 'Reactions'}>
+        {whoRows === null && <Spinner />}
+        {whoRows && whoRows.length === 0 && <p className="muted">No reactions yet.</p>}
+        {whoRows && whoRows.length > 0 && (
+          <div className="pick-list">
+            {whoRows.map((r) => (
+              <div key={r.user_id} className="pick-row static">
+                <Avatar profile={r.profile} size={32} />
+                <span className="pick-title">{r.profile?.display_name || r.profile?.username || 'A friend'}</span>
+                <span style={{ fontSize: 22 }}>{r.emoji}</span>
               </div>
             ))}
           </div>

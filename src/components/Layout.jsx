@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import ScrollManager from './ScrollManager.jsx'
+import { useNotifications } from '../NotificationsContext.jsx'
 
 const Icon = ({ children }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -8,6 +9,7 @@ const Icon = ({ children }) => (
 )
 
 export default function Layout() {
+  const { unread } = useNotifications()
   return (
     <div className="app-shell">
       <ScrollManager />
@@ -29,6 +31,20 @@ export default function Layout() {
             <path d="M21 20v-2a4 4 0 00-3-3.87M16 4.13a4 4 0 010 7.75" />
           </Icon>
           <span>Friends</span>
+        </NavLink>
+        <NavLink to="/activity" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          <span className="tab-icon">
+            <Icon>
+              <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.7 21a2 2 0 01-3.4 0" />
+            </Icon>
+            {unread > 0 && (
+              <span className="badge" aria-label={`${unread} unread`}>
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+          </span>
+          <span>Activity</span>
         </NavLink>
         <NavLink to="/me" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           <Icon>

@@ -12,7 +12,7 @@ export const getListsByOwner = async (ownerId) =>
   unwrap(
     await supabase
       .from('lists')
-      .select('*, list_items(id, title, position), list_likes(user_id)')
+      .select('*, list_items(id, title, position), list_likes(user_id), list_favorites(user_id)')
       .eq('owner_id', ownerId)
       .order('position', { ascending: true, nullsFirst: false })
       .order('updated_at', { ascending: false }),
@@ -61,6 +61,74 @@ export const likeList = async (listId, userId) =>
 
 export const unlikeList = async (listId, userId) =>
   unwrap(await supabase.from('list_likes').delete().eq('list_id', listId).eq('user_id', userId))
+
+// ---------- Favorites (one favorite list per friend) ----------
+
+// My current favorite among one friend's lists, or null.
+export const getMyFavorite = async (ownerId, myId) =>
+  unwrap(
+    await supabase
+      .from('list_favorites')
+      .select('list_id, list:lists!list_favorites_list_id_fkey(id, title)')
+      .eq('user_id', myId)
+      .eq('owner_id', ownerId)
+      .maybeSingle(),
+  )
+
+export const getFavoriters = async (listId) =>
+  unwrap(
+    await supabase
+      .from('list_favorites')
+      .select('user_id, created_at, profile:profiles!list_favorites_user_id_fkey(id, username, display_name, avatar_path)')
+      .eq('list_id', listId)
+      .order('created_at', { ascending: false }),
+  )
+
+export const setFavorite = async (listId) => unwrap(await supabase.rpc('set_favorite', { p_list_id: listId }))
+export const clearFavorite = async (listId) => unwrap(await supabase.rpc('clear_favorite', { p_list_id: listId }))
+
+// ---------- Reactions ----------
+
+export const getReactions = async (listId) =>
+  unwrap(await supabase.from('item_reactions').select('item_id, user_id, emoji').eq('list_id', listId))
+
+export const getReactors = async (itemId) =>
+  unwrap(
+    await supabase
+      .from('item_reactions')
+      .select('user_id, emoji, created_at, profile:profiles!item_reactions_user_id_fkey(id, username, display_name, avatar_path)')
+      .eq('item_id', itemId)
+      .order('created_at', { ascending: false }),
+  )
+
+export const reactToItem = async (itemId, emoji) => unwrap(await supabase.rpc('react_to_item', { p_item_id: itemId, p_emoji: emoji }))
+
+// ---------- Notifications ----------
+
+export const getNotifications = async (limit = 100) =>
+  unwrap(
+    await supabase
+      .from('notifications')
+      .select('id, type, list_id, item_id, list_title, item_title, emoji, created_at, read_at, actor:profiles!notifications_actor_id_fkey(id, username, display_name, avatar_path)')
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  )
+
+export const getUnreadCount = async () => {
+  const { count, error } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null)
+  if (error) throw error
+  return count ?? 0
+}
+
+export const markNotificationRead = async (id) =>
+  unwrap(await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id).is('read_at', null))
+
+export const markAllNotificationsRead = async () =>
+  unwrap(await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null).neq('type', 'friend_request'))
+
+export const deleteNotification = async (id) => unwrap(await supabase.from('notifications').delete().eq('id', id))
+
+export const clearNotifications = async (myId) => unwrap(await supabase.from('notifications').delete().eq('recipient_id', myId))
 
 // Save a new order for the person's lists (best first).
 export const reorderLists = async (orderedIds) => {
@@ -147,3 +215,11 @@ export const acceptFriendRequest = async (friendshipId) =>
 
 export const removeFriendship = async (friendshipId) =>
   unwrap(await supabase.from('friendships').delete().eq('id', friendshipId))
+
+// ---------- Phone push notifications ----------
+
+export const savePushSubscription = async (endpoint, p256dh, auth) =>
+  unwrap(await supabase.rpc('save_push_subscription', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }))
+
+export const deletePushSubscription = async (endpoint) =>
+  unwrap(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
