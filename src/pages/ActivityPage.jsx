@@ -10,11 +10,10 @@ import {
   getFriendships,
   getNotifications,
   markAllNotificationsRead,
-  markNotificationRead,
   removeFriendship,
 } from '../api.js'
 import { groupNotifications, nameList } from '../activityGroups.js'
-import { disablePush, enablePush, getPushStatus } from '../push.js'
+import { clearDeliveredNotifications, disablePush, enablePush, getPushStatus } from '../push.js'
 import { Avatar, Empty, Modal, Spinner, TopBar } from '../components/ui.jsx'
 
 const GLYPH = { new_list: '📝', edited_list: '✏️', liked: '❤️', favorited: '⭐', friend_accepted: '🤝' }
@@ -137,7 +136,7 @@ export default function ActivityPage() {
   const { user } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
-  const { setUnread, refreshUnread } = useNotifications()
+  const { unread, setUnread, refreshUnread } = useNotifications()
   const [items, setItems] = useState(null)
   const [friendships, setFriendships] = useState(null)
   const [tab, setTab] = useState('updates')
@@ -150,8 +149,13 @@ export default function ActivityPage() {
   const load = useCallback(async () => {
     try {
       const rows = await getNotifications()
+      // rows stay highlighted as "new" for this visit, but everything is marked read for real right away
       setItems(rows)
-      setUnread(rows.filter((r) => !r.read_at).length)
+      // updates are marked read right away; pending friend requests keep the red number until answered
+      const waiting = rows.filter((r) => r.type === 'friend_request' && !r.read_at).length
+      setUnread(waiting)
+      if (rows.some((r) => r.type !== 'friend_request' && !r.read_at)) markAllNotificationsRead().catch(() => {})
+      clearDeliveredNotifications()
     } catch {
       toast('Could not load your notifications')
       setItems([])
@@ -161,7 +165,7 @@ export default function ActivityPage() {
     } catch {
       setFriendships([])
     }
-  }, [setUnread, toast, user.id])
+  }, [setUnread, refreshUnread, toast, user.id])
 
   useEffect(() => {
     load()
@@ -170,6 +174,13 @@ export default function ActivityPage() {
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
+
+  // a friend does something while you're looking at this page: show it and mark it read too
+  useEffect(() => {
+    const waiting = (items || []).filter((r) => r.type === 'friend_request' && !r.read_at).length
+    if (items !== null && unread > waiting) load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unread])
 
   const incoming = (friendships || []).filter((f) => f.status === 'pending' && f.addressee_id === user.id)
   const outgoing = (friendships || []).filter((f) => f.status === 'pending' && f.requester_id === user.id)
@@ -209,22 +220,7 @@ export default function ActivityPage() {
     }
   }
 
-  async function markRows(rows) {
-    const unreadRows = rows.filter((r) => !r.read_at)
-    if (unreadRows.length === 0) return
-    const ids = new Set(unreadRows.map((r) => r.id))
-    const stamp = new Date().toISOString()
-    setItems((cur) => cur.map((x) => (ids.has(x.id) ? { ...x, read_at: stamp } : x)))
-    setUnread((u) => Math.max(0, u - unreadRows.length))
-    try {
-      await Promise.all(unreadRows.map((r) => markNotificationRead(r.id)))
-    } catch {
-      refreshUnread()
-    }
-  }
-
   function open(g) {
-    markRows(g.rows)
     const to = targetOf(g)
     if (to) navigate(to)
     else toast('That list is gone')
@@ -233,23 +229,10 @@ export default function ActivityPage() {
   async function remove(g) {
     const ids = new Set(g.rows.map((r) => r.id))
     setItems((cur) => cur.filter((x) => !ids.has(x.id)))
-    setUnread((u) => Math.max(0, u - g.rows.filter((r) => !r.read_at).length))
     try {
       await Promise.all(g.rows.map((r) => deleteNotification(r.id)))
     } catch {
       toast('Could not remove that')
-      load()
-    }
-  }
-
-  async function markAll() {
-    const stamp = new Date().toISOString()
-    setItems((cur) => cur.map((x) => (x.type === 'friend_request' ? x : { ...x, read_at: x.read_at || stamp })))
-    try {
-      await markAllNotificationsRead()
-      await refreshUnread()
-    } catch {
-      toast('Could not mark them as read')
       load()
     }
   }
@@ -298,7 +281,6 @@ export default function ActivityPage() {
     }
   }
 
-  const hasUnread = groups.some((g) => g.unread)
   const loading = items === null || friendships === null
 
   return (
@@ -388,10 +370,6 @@ export default function ActivityPage() {
           {groups.length > 0 && (
             <>
               <div className="activity-actions">
-                <button className="btn small" disabled={!hasUnread} onClick={markAll}>
-                  Mark all read
-                </button>
-                <span className="spacer" />
                 <button className="btn small" onClick={() => setConfirmClear(true)}>
                   Clear all
                 </button>

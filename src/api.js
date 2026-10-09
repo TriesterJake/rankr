@@ -123,6 +123,7 @@ export const getUnreadCount = async () => {
 export const markNotificationRead = async (id) =>
   unwrap(await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id).is('read_at', null))
 
+// Friend requests are left alone: they stay "unread" (and counted in the red number) until you accept or decline.
 export const markAllNotificationsRead = async () =>
   unwrap(await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null).neq('type', 'friend_request'))
 

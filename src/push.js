@@ -66,3 +66,15 @@ export async function syncPushSubscription() {
     /* try again next time */
   }
 }
+
+// Remove RankR's banners from the phone's notification list (used when you open Activity).
+export async function clearDeliveredNotifications() {
+  try {
+    if (!('serviceWorker' in navigator)) return
+    const reg = await navigator.serviceWorker.ready
+    const shown = await reg.getNotifications()
+    shown.forEach((n) => n.close())
+  } catch {
+    /* not supported here: nothing to clear */
+  }
+}
