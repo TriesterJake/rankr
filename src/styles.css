@@ -1726,3 +1726,28 @@ button:focus-visible {
   font-weight: 700;
   text-decoration: none;
 }
+
+/* ---------- Friend ranking ---------- */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.friend-rank {
+  flex: none;
+  margin-right: 4px;
+}
+.friend-reorder-row .row-text {
+  min-width: 0;
+}
+.input-with-clear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.input-with-clear input {
+  flex: 1;
+  min-width: 0;
+}

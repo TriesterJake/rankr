@@ -224,3 +224,16 @@ export const savePushSubscription = async (endpoint, p256dh, auth) =>
 
 export const deletePushSubscription = async (endpoint) =>
   unwrap(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
+
+// ---------- Private friend ranking (only you can see your own order) ----------
+
+export const getFriendRanks = async () =>
+  unwrap(await supabase.from('friend_ranks').select('friend_id, position'))
+
+// Save the whole order, best friend first.
+export const saveFriendRanks = async (myId, orderedFriendIds) =>
+  unwrap(
+    await supabase
+      .from('friend_ranks')
+      .upsert(orderedFriendIds.map((friend_id, position) => ({ user_id: myId, friend_id, position })), { onConflict: 'user_id,friend_id' }),
+  )

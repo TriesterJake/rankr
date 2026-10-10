@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { acceptFriendRequest, getFriendships, removeFriendship, searchProfiles, sendFriendRequest } from '../api.js'
+import { acceptFriendRequest, getFriendRanks, getFriendships, removeFriendship, saveFriendRanks, searchProfiles, sendFriendRequest } from '../api.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import FriendReorder from '../components/FriendReorder.jsx'
 
-function PersonRow({ profile, to, action }) {
+function PersonRow({ profile, to, action, rank }) {
   const inner = (
     <>
+      {rank && <span className={`rank friend-rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>}
       <Avatar profile={profile} />
       <div className="person-text">
         <b>{profile.display_name || profile.username}</b>
@@ -36,10 +38,17 @@ export default function FriendsPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [ranks, setRanks] = useState({}) // friend id -> position (private to you)
+  const [ranking, setRanking] = useState(false)
+  const [order, setOrder] = useState([]) // friend profiles in your order while ranking
+  const saveQueue = useRef(Promise.resolve())
 
   const load = useCallback(async () => {
     try {
       setFriendships(await getFriendships(user.id))
+      getFriendRanks()
+        .then((rows) => setRanks(Object.fromEntries(rows.map((r) => [r.friend_id, r.position]))))
+        .catch(() => {})
     } catch {
       toast('Could not load friends')
       setFriendships([])
@@ -79,6 +88,32 @@ export default function FriendsPage() {
   const otherOf = (f) => (f.requester_id === user.id ? f.addressee : f.requester)
   const all = friendships ?? []
   const friends = all.filter((f) => f.status === 'accepted')
+  // your friends, best first; anyone you haven't ranked yet goes at the end, A to Z
+  const sortedFriends = useMemo(() => {
+    const nameOf = (f) => (otherOf(f).display_name || otherOf(f).username || '').toLowerCase()
+    return friends
+      .map((f) => ({ f, pos: ranks[otherOf(f).id] }))
+      .sort((a, b) => (a.pos ?? Infinity) - (b.pos ?? Infinity) || nameOf(a.f).localeCompare(nameOf(b.f)))
+      .map((x) => x.f)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friends.length, friendships, ranks])
+
+  function startRanking() {
+    setQuery('')
+    setOrder(sortedFriends.map(otherOf))
+    setRanking(true)
+  }
+
+  function changeOrder(next) {
+    setOrder(next)
+    setRanks(Object.fromEntries(next.map((p, i) => [p.id, i])))
+    const ids = next.map((p) => p.id)
+    // save one change at a time so quick drags can't overwrite each other
+    saveQueue.current = saveQueue.current.then(() => saveFriendRanks(user.id, ids)).catch(() => {
+      toast('Could not save your friend ranking')
+      load()
+    })
+  }
   const incoming = all.filter((f) => f.status === 'pending' && f.addressee_id === user.id)
   const outgoing = all.filter((f) => f.status === 'pending' && f.requester_id === user.id)
   const relationWith = (profileId) => all.find((f) => f.requester_id === profileId || f.addressee_id === profileId)
@@ -167,13 +202,28 @@ export default function FriendsPage() {
 
       {friendships && (
         <section className="section">
-          <h2 className="section-title">Your friends{friends.length > 0 ? ` (${friends.length})` : ''}</h2>
+          <div className="section-head">
+            <h2 className="section-title">Your friends{friends.length > 0 ? ` (${friends.length})` : ''}</h2>
+            {friends.length > 1 &&
+              (ranking ? (
+                <button className="btn small primary" onClick={() => setRanking(false)}>
+                  Done
+                </button>
+              ) : (
+                <button className="btn small" onClick={startRanking}>
+                  Rank friends
+                </button>
+              ))}
+          </div>
+          {ranking && <p className="muted small pad">Drag the handles to rank your friends. Only you can see this order.</p>}
           {friends.length === 0 ? (
             <Empty title="No friends yet">Search for a username above to send your first request.</Empty>
+          ) : ranking ? (
+            <FriendReorder profiles={order} onChange={changeOrder} />
           ) : (
-            friends.map((f) => {
+            sortedFriends.map((f) => {
               const p = otherOf(f)
-              return <PersonRow key={f.id} profile={p} to={`/u/${p.id}`} />
+              return <PersonRow key={f.id} profile={p} to={`/u/${p.id}`} rank={ranks[p.id] !== undefined ? sortedFriends.indexOf(f) + 1 : undefined} />
             })
           )}
         </section>

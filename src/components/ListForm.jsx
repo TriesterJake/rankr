@@ -89,7 +89,14 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
 
       <label className="field">
         <span className="label">Icon (optional)</span>
-        <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="A letter or emoji, e.g. a favorite emoji" maxLength={4} />
+        <span className="input-with-clear">
+          <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="A letter or emoji, e.g. a favorite emoji" maxLength={4} />
+          {icon && (
+            <button type="button" className="btn small" onClick={() => setIcon('')}>
+              Clear
+            </button>
+          )}
+        </span>
       </label>
 
       <div className="field">
