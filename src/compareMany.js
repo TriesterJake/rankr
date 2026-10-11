@@ -60,9 +60,21 @@ export function compareMany(lists) {
   const some = rows.filter((r) => r.present > 1 && r.present < n).sort((x, y) => y.present - x.present || x.avgPos - y.avgPos)
   const single = rows.filter((r) => r.present === 1).sort((x, y) => x.firstList - y.firstList || x.ranks[x.firstList] - y.ranks[y.firstList])
 
+  // for the side-by-side view: how many lists each item appears on
+  const lists_present = new Map()
+  lists.forEach((l, li) =>
+    l.items.forEach((_, i) => {
+      const root = find(key(li, i))
+      if (!lists_present.has(root)) lists_present.set(root, new Set())
+      lists_present.get(root).add(li)
+    }),
+  )
+  const presence = lists.map((l, li) => l.items.map((_, i) => lists_present.get(find(key(li, i))).size))
+
   const divisive = [...everyone].sort((x, y) => y.spread - x.spread)[0]
   return {
     n,
+    presence,
     pairs: pairs.sort((x, y) => y.match - x.match),
     everyone,
     some,

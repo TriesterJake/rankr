@@ -15,6 +15,7 @@ export default function MultiComparePage() {
   const ids = useMemo(() => (params.get('lists') || '').split(',').filter((x) => ID.test(x)).slice(0, 6), [params])
   const [data, setData] = useState(undefined) // undefined loading, null failed
   const [showSingles, setShowSingles] = useState(false)
+  const [view, setView] = useState('table') // table | side
 
   useEffect(() => {
     if (ids.length < 2) {
@@ -140,6 +141,48 @@ export default function MultiComparePage() {
         </section>
       )}
 
+      <div className="segmented tabs">
+        <button className={view === 'table' ? 'seg on' : 'seg'} onClick={() => setView('table')}>
+          In common
+        </button>
+        <button className={view === 'side' ? 'seg on' : 'seg'} onClick={() => setView('side')}>
+          Side by side
+        </button>
+      </div>
+
+      {view === 'side' && (
+        <>
+          <p className="muted small pad">
+            Darker means the item is on every list, dashed means some lists, faded means just one.
+          </p>
+          <div className="mc-side-scroll">
+            <div className="mc-side" style={gridStyle}>
+              {data.map(({ list, items }, li) => (
+                <div className="side-col" key={list.id}>
+                  <h3 className="mc-side-head">
+                    <Avatar profile={list.owner} size={26} />
+                    <span>{who[li]}</span>
+                  </h3>
+                  <ol>
+                    {items.map((item, i) => {
+                      const p = result.presence[li][i]
+                      return (
+                        <li key={item.id} className={p === data.length ? 'shared' : p > 1 ? 'similar' : 'only'}>
+                          <b>{i + 1}</b>
+                          <span>{item.title}</span>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {view === 'table' && (
+        <>
       {section(`On all ${data.length} lists`, result.everyone, 'Best average rank first. Gold means the highest rank for that item.')}
       {section('On some lists', result.some)}
 
@@ -152,7 +195,10 @@ export default function MultiComparePage() {
         </section>
       )}
 
-      {result.everyone.length + result.some.length === 0 && <Empty title="Nothing in common yet">None of these lists share an item.</Empty>}
+      {view === "table" && result.everyone.length + result.some.length === 0 && <Empty title="Nothing in common yet">None of these lists share an item.</Empty>}
+        </>
+      )}
+
     </>
   )
 }

@@ -1851,3 +1851,29 @@ button:focus-visible {
   padding: 8px 0 10px;
   background: var(--surface);
 }
+
+.mc-side-scroll {
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px 8px;
+}
+.mc-side {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(138px, 1fr));
+  gap: 10px;
+  min-width: min-content;
+}
+.mc-side-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+.mc-side-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
