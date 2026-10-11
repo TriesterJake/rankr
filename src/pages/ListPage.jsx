@@ -14,6 +14,7 @@ import ListForm from '../components/ListForm.jsx'
 import LikeButton, { Heart } from '../components/LikeButton.jsx'
 import FavoriteButton, { Star } from '../components/FavoriteButton.jsx'
 import ReactionBar from '../components/ReactionBar.jsx'
+import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -160,6 +161,7 @@ export default function ListPage() {
   const [editingId, setEditingId] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
+  const [multiOpen, setMultiOpen] = useState(false)
   const [myLists, setMyLists] = useState(null)
   const [draft, setDraft] = useState('')
   const [rankDraft, setRankDraft] = useState('')
@@ -637,7 +639,7 @@ export default function ListPage() {
         }
       />
 
-      {isOwner && ((likes !== null && likes.length > 0) || (favs !== null && favs.length > 0)) && (
+      {isOwner && (
         <div className="like-row">
           {likes !== null && likes.length > 0 && (
             <button className="like-btn on" onClick={() => openLikers('likes')}>
@@ -654,6 +656,14 @@ export default function ListPage() {
                 {favs.length} {favs.length === 1 ? 'favorite' : 'favorites'}
               </span>
             </button>
+          )}
+          {items.length > 0 && (
+            <>
+              <span className="spacer" />
+              <button className="btn small" onClick={() => setMultiOpen(true)}>
+                Compare with friends
+              </button>
+            </>
           )}
         </div>
       )}
@@ -894,6 +904,8 @@ export default function ListPage() {
       <Sheet open={settingsOpen} onClose={() => setSettingsOpen(false)} title="List settings">
         <ListForm initial={list} submitLabel="Save" onSubmit={handleSettings} onDelete={handleDeleteList} />
       </Sheet>
+
+      {isOwner && <MultiCompareSheet open={multiOpen} list={list} onClose={() => setMultiOpen(false)} />}
 
       <Sheet open={compareOpen} onClose={() => setCompareOpen(false)} title="Compare with which of your lists?">
         {myLists === null && <Spinner />}

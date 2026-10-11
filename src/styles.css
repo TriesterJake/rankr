@@ -1755,3 +1755,91 @@ button:focus-visible {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- Compare several lists ---------- */
+
+.check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  font-size: 15px;
+  font-weight: 800;
+  color: #14151a;
+}
+.check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.pick-row.picked {
+  border-color: var(--accent);
+}
+.mc-pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mc-pair {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.mc-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(var(--n), 46px);
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.mc-row.mc-head {
+  background: none;
+  border-color: transparent;
+  padding-bottom: 2px;
+}
+.mc-col-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.mc-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+.mc-rank {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 14px;
+}
+.mc-rank.none {
+  color: var(--muted);
+  font-weight: 400;
+}
+.mc-rank.best {
+  color: #ffb02e;
+}
+.mc-row.mc-same {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+.person-text .muted + .muted {
+  margin-top: 1px;
+}

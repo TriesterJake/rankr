@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { acceptFriendRequest, getFriendRanks, getFriendships, removeFriendship, saveFriendRanks, searchProfiles, sendFriendRequest } from '../api.js'
+import { acceptFriendRequest, getFriendRanks, getFriendSuggestions, getFriendships, removeFriendship, saveFriendRanks, searchProfiles, sendFriendRequest } from '../api.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
 import FriendReorder from '../components/FriendReorder.jsx'
 
-function PersonRow({ profile, to, action, rank }) {
+function PersonRow({ profile, to, action, rank, detail }) {
   const inner = (
     <>
       {rank && <span className={`rank friend-rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>}
@@ -14,6 +14,7 @@ function PersonRow({ profile, to, action, rank }) {
       <div className="person-text">
         <b>{profile.display_name || profile.username}</b>
         <span className="muted small">@{profile.username}</span>
+        {detail && <span className="muted small">{detail}</span>}
       </div>
     </>
   )
@@ -40,12 +41,16 @@ export default function FriendsPage() {
   const [searching, setSearching] = useState(false)
   const [ranks, setRanks] = useState({}) // friend id -> position (private to you)
   const [ranking, setRanking] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
   const [order, setOrder] = useState([]) // friend profiles in your order while ranking
   const saveQueue = useRef(Promise.resolve())
 
   const load = useCallback(async () => {
     try {
       setFriendships(await getFriendships(user.id))
+      getFriendSuggestions()
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]))
       getFriendRanks()
         .then((rows) => setRanks(Object.fromEntries(rows.map((r) => [r.friend_id, r.position]))))
         .catch(() => {})
@@ -226,6 +231,41 @@ export default function FriendsPage() {
               return <PersonRow key={f.id} profile={p} to={`/u/${p.id}`} rank={ranks[p.id] !== undefined ? sortedFriends.indexOf(f) + 1 : undefined} />
             })
           )}
+        </section>
+      )}
+
+      {friendships && !ranking && suggestions.length > 0 && (
+        <section className="section">
+          <h2 className="section-title">People you may know</h2>
+          {suggestions.map((s) => (
+            <PersonRow
+              key={s.id}
+              profile={s}
+              to={`/u/${s.id}`}
+              detail={
+                s.mutual_count > 2
+                  ? `${s.mutual_names.join(', ')} + ${s.mutual_count - 2} more mutual`
+                  : `Friends with ${s.mutual_names.join(' and ')}`
+              }
+              action={
+                <button
+                  className="btn small primary"
+                  onClick={() =>
+                    run(
+                      async () => {
+                        await sendFriendRequest(user.id, s.id)
+                        setSuggestions((cur) => cur.filter((x) => x.id !== s.id))
+                      },
+                      'Could not send request',
+                      'Request sent',
+                    )
+                  }
+                >
+                  Add
+                </button>
+              }
+            />
+          ))}
         </section>
       )}
 

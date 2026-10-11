@@ -25,7 +25,7 @@ export const getList = async (id) =>
   unwrap(
     await supabase
       .from('lists')
-      .select('*, owner:profiles!lists_owner_id_fkey(id, username, display_name)')
+      .select('*, owner:profiles!lists_owner_id_fkey(id, username, display_name, avatar_path)')
       .eq('id', id)
       .maybeSingle(),
   )
@@ -236,4 +236,18 @@ export const saveFriendRanks = async (myId, orderedFriendIds) =>
     await supabase
       .from('friend_ranks')
       .upsert(orderedFriendIds.map((friend_id, position) => ({ user_id: myId, friend_id, position })), { onConflict: 'user_id,friend_id' }),
+  )
+
+// ---------- Friend suggestions and multi-friend compare ----------
+
+export const getFriendSuggestions = async () => unwrap(await supabase.rpc('friend_suggestions', { p_limit: 12 }))
+
+// Every list your friends share with you (titles only), for picking who to compare with.
+export const getFriendsLists = async (myId) =>
+  unwrap(
+    await supabase
+      .from('lists')
+      .select('id, title, color, icon, icon_path, owner_id, owner:profiles!lists_owner_id_fkey(id, username, display_name, avatar_path), list_items(count)')
+      .neq('owner_id', myId)
+      .order('title'),
   )
