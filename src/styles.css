@@ -1843,3 +1843,11 @@ button:focus-visible {
 .person-text .muted + .muted {
   margin-top: 1px;
 }
+
+.sheet-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 0 10px;
+  background: var(--surface);
+}

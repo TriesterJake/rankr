@@ -44,6 +44,15 @@ export default function MultiCompareSheet({ open, list, onClose }) {
       {lists && lists.length === 0 && <p className="muted">None of your friends have shared a list yet.</p>}
       {lists && lists.length > 0 && (
         <>
+          <div className="sheet-sticky-top">
+            <button
+              className="btn primary block"
+              disabled={picked.length === 0}
+              onClick={() => navigate(`/compare-many?lists=${[list.id, ...picked].join(',')}`)}
+            >
+              {picked.length === 0 ? 'Pick at least one list' : `Compare ${picked.length + 1} lists`}
+            </button>
+          </div>
           <div className="pick-list">
             {lists.map((l) => {
               const on = picked.includes(l.id)
@@ -62,13 +71,6 @@ export default function MultiCompareSheet({ open, list, onClose }) {
               )
             })}
           </div>
-          <button
-            className="btn primary block spaced"
-            disabled={picked.length === 0}
-            onClick={() => navigate(`/compare-many?lists=${[list.id, ...picked].join(',')}`)}
-          >
-            {picked.length === 0 ? 'Pick at least one list' : `Compare ${picked.length + 1} lists`}
-          </button>
         </>
       )}
     </Sheet>
