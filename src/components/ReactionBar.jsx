@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export const EMOJIS = ['🔥', '❤️', '😂', '👏', '🤔', '👎']
+export const EMOJIS = ['🔥', '❤️', '😂', '😭', '🤔', '👎']
 
 // Emoji reactions under one list item. Friends tap a chip (or + to pick) to react; the owner taps a chip to see who.
 // reactions: [{ user_id, emoji }] for THIS item.
