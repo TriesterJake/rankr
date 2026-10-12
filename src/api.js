@@ -5,10 +5,29 @@ const unwrap = ({ data, error }) => {
   return data
 }
 
+// Every request to Supabase shows up in its logs, so repeated reads within a short time are answered from memory.
+// Anything the app writes clears this memory, so you always see your own changes straight away.
+const memory = new Map()
+export const bustCache = () => memory.clear()
+const remember = (key, ms, fetcher, fresh = false) => {
+  const hit = memory.get(key)
+  if (!fresh && hit && Date.now() - hit.at < ms) return hit.promise.then((d) => structuredClone(d))
+  const promise = fetcher()
+  memory.set(key, { at: Date.now(), promise })
+  promise.catch(() => memory.delete(key))
+  return promise.then((d) => structuredClone(d))
+}
+// like unwrap, but for requests that change data
+const unwrapW = (result) => {
+  bustCache()
+  return unwrap(result)
+}
+
 // ---------- Lists ----------
 
 // Lists owned by someone (row-level security only returns what the viewer may see).
-export const getListsByOwner = async (ownerId) =>
+export const getListsByOwner = async (ownerId, fresh = false) =>
+  remember(`lists:${ownerId}`, 30000, async () =>
   unwrap(
     await supabase
       .from('lists')
@@ -16,7 +35,7 @@ export const getListsByOwner = async (ownerId) =>
       .eq('owner_id', ownerId)
       .order('position', { ascending: true, nullsFirst: false })
       .order('updated_at', { ascending: false }),
-  )
+  ), fresh)
 
 export const topItems = (list, n = 3) =>
   [...(list.list_items || [])].sort((a, b) => a.position - b.position).slice(0, n)
@@ -31,7 +50,7 @@ export const getList = async (id) =>
   )
 
 export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position }) =>
-  unwrap(
+  unwrapW(
     await supabase
       .from('lists')
       .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position })
@@ -40,7 +59,7 @@ export const createList = async ({ ownerId, title, icon, icon_path = null, color
   )
 
 export const updateList = async (id, patch) =>
-  unwrap(await supabase.from('lists').update(patch).eq('id', id).select().single())
+  unwrapW(await supabase.from('lists').update(patch).eq('id', id).select().single())
 
 // ---------- Likes ----------
 
@@ -57,10 +76,10 @@ export const getLikers = async (listId) =>
   )
 
 export const likeList = async (listId, userId) =>
-  unwrap(await supabase.from('list_likes').insert({ list_id: listId, user_id: userId }))
+  unwrapW(await supabase.from('list_likes').insert({ list_id: listId, user_id: userId }))
 
 export const unlikeList = async (listId, userId) =>
-  unwrap(await supabase.from('list_likes').delete().eq('list_id', listId).eq('user_id', userId))
+  unwrapW(await supabase.from('list_likes').delete().eq('list_id', listId).eq('user_id', userId))
 
 // ---------- Favorites (one favorite list per friend) ----------
 
@@ -84,8 +103,8 @@ export const getFavoriters = async (listId) =>
       .order('created_at', { ascending: false }),
   )
 
-export const setFavorite = async (listId) => unwrap(await supabase.rpc('set_favorite', { p_list_id: listId }))
-export const clearFavorite = async (listId) => unwrap(await supabase.rpc('clear_favorite', { p_list_id: listId }))
+export const setFavorite = async (listId) => unwrapW(await supabase.rpc('set_favorite', { p_list_id: listId }))
+export const clearFavorite = async (listId) => unwrapW(await supabase.rpc('clear_favorite', { p_list_id: listId }))
 
 // ---------- Reactions ----------
 
@@ -101,7 +120,7 @@ export const getReactors = async (itemId) =>
       .order('created_at', { ascending: false }),
   )
 
-export const reactToItem = async (itemId, emoji) => unwrap(await supabase.rpc('react_to_item', { p_item_id: itemId, p_emoji: emoji }))
+export const reactToItem = async (itemId, emoji) => unwrapW(await supabase.rpc('react_to_item', { p_item_id: itemId, p_emoji: emoji }))
 
 // ---------- Notifications ----------
 
@@ -132,13 +151,9 @@ export const deleteNotification = async (id) => unwrap(await supabase.from('noti
 export const clearNotifications = async (myId) => unwrap(await supabase.from('notifications').delete().eq('recipient_id', myId))
 
 // Save a new order for the person's lists (best first).
-export const reorderLists = async (orderedIds) => {
-  const results = await Promise.all(orderedIds.map((id, i) => supabase.from('lists').update({ position: i }).eq('id', id)))
-  const failed = results.find((r) => r.error)
-  if (failed) throw failed.error
-}
+export const reorderLists = async (orderedIds) => unwrapW(await supabase.rpc('reorder_lists', { p_ids: orderedIds }))
 
-export const deleteList = async (id) => unwrap(await supabase.from('lists').delete().eq('id', id))
+export const deleteList = async (id) => unwrapW(await supabase.from('lists').delete().eq('id', id))
 
 // ---------- Items ----------
 
@@ -147,7 +162,7 @@ export const getItems = async (listId) =>
 
 export const addItems = async (listId, titles, startPosition) => {
   const rows = titles.map((title, i) => ({ list_id: listId, title, position: startPosition + i }))
-  const data = unwrap(await supabase.from('list_items').insert(rows).select())
+  const data = unwrapW(await supabase.from('list_items').insert(rows).select())
   return data.sort((a, b) => a.position - b.position)
 }
 
@@ -155,24 +170,25 @@ export const addItems = async (listId, titles, startPosition) => {
 export const copyItems = async (listId, items) => {
   const rows = items.map((it, i) => ({ list_id: listId, title: it.title, note: it.note || '', position: i }))
   if (rows.length === 0) return []
-  return unwrap(await supabase.from('list_items').insert(rows).select())
+  return unwrapW(await supabase.from('list_items').insert(rows).select())
 }
 
 export const updateItem = async (id, patch) =>
-  unwrap(await supabase.from('list_items').update(patch).eq('id', id).select().single())
+  unwrapW(await supabase.from('list_items').update(patch).eq('id', id).select().single())
 
-export const deleteItem = async (id) => unwrap(await supabase.from('list_items').delete().eq('id', id))
+export const deleteItem = async (id) => unwrapW(await supabase.from('list_items').delete().eq('id', id))
 
 export const reorderItems = async (listId, orderedIds) =>
-  unwrap(await supabase.rpc('reorder_list_items', { p_list_id: listId, p_item_ids: orderedIds }))
+  unwrapW(await supabase.rpc('reorder_list_items', { p_list_id: listId, p_item_ids: orderedIds }))
 
 // ---------- Profiles ----------
 
-export const getProfile = async (id) =>
-  unwrap(await supabase.from('profiles').select('*').eq('id', id).maybeSingle())
+export const getProfile = async (id, fresh = false) =>
+  remember(`profile:${id}`, 60000, async () =>
+  unwrap(await supabase.from('profiles').select('*').eq('id', id).maybeSingle()), fresh)
 
 export const updateProfile = async (id, patch) =>
-  unwrap(await supabase.from('profiles').update(patch).eq('id', id).select().single())
+  unwrapW(await supabase.from('profiles').update(patch).eq('id', id).select().single())
 
 export const usernameAvailable = async (username) =>
   unwrap(await supabase.rpc('username_available', { u: username }))
@@ -195,7 +211,8 @@ export const searchProfiles = async (query, myId) => {
 
 const PROFILE_FIELDS = 'id, username, display_name, avatar_path'
 
-export const getFriendships = async (myId) =>
+export const getFriendships = async (myId, fresh = false) =>
+  remember(`friendships:${myId}`, 30000, async () =>
   unwrap(
     await supabase
       .from('friendships')
@@ -206,16 +223,16 @@ export const getFriendships = async (myId) =>
       )
       .or(`requester_id.eq.${myId},addressee_id.eq.${myId}`)
       .order('created_at', { ascending: false }),
-  )
+  ), fresh)
 
 export const sendFriendRequest = async (myId, otherId) =>
-  unwrap(await supabase.from('friendships').insert({ requester_id: myId, addressee_id: otherId }))
+  unwrapW(await supabase.from('friendships').insert({ requester_id: myId, addressee_id: otherId }))
 
 export const acceptFriendRequest = async (friendshipId) =>
-  unwrap(await supabase.rpc('accept_friend_request', { p_id: friendshipId }))
+  unwrapW(await supabase.rpc('accept_friend_request', { p_id: friendshipId }))
 
 export const removeFriendship = async (friendshipId) =>
-  unwrap(await supabase.from('friendships').delete().eq('id', friendshipId))
+  unwrapW(await supabase.from('friendships').delete().eq('id', friendshipId))
 
 // ---------- Phone push notifications ----------
 
@@ -227,12 +244,13 @@ export const deletePushSubscription = async (endpoint) =>
 
 // ---------- Private friend ranking (only you can see your own order) ----------
 
-export const getFriendRanks = async () =>
-  unwrap(await supabase.from('friend_ranks').select('friend_id, position'))
+export const getFriendRanks = async (fresh = false) =>
+  remember('ranks', 30000, async () =>
+  unwrap(await supabase.from('friend_ranks').select('friend_id, position')), fresh)
 
 // Save the whole order, best friend first.
 export const saveFriendRanks = async (myId, orderedFriendIds) =>
-  unwrap(
+  unwrapW(
     await supabase
       .from('friend_ranks')
       .upsert(orderedFriendIds.map((friend_id, position) => ({ user_id: myId, friend_id, position })), { onConflict: 'user_id,friend_id' }),
@@ -240,7 +258,8 @@ export const saveFriendRanks = async (myId, orderedFriendIds) =>
 
 // ---------- Friend suggestions and multi-friend compare ----------
 
-export const getFriendSuggestions = async () => unwrap(await supabase.rpc('friend_suggestions', { p_limit: 12 }))
+export const getFriendSuggestions = async (fresh = false) =>
+  remember('suggestions', 300000, async () => unwrap(await supabase.rpc('friend_suggestions', { p_limit: 12 })), fresh)
 
 // Every list your friends share with you (titles only), for picking who to compare with.
 export const getFriendsLists = async (myId) =>
@@ -251,3 +270,19 @@ export const getFriendsLists = async (myId) =>
       .neq('owner_id', myId)
       .order('title'),
   )
+
+// One request for everything on a list page: the list, its items, likes, favorites and reactions.
+export const getListFull = async (id) =>
+  unwrap(
+    await supabase
+      .from('lists')
+      .select(
+        '*, owner:profiles!lists_owner_id_fkey(id, username, display_name, avatar_path), list_items(*), list_likes(user_id), list_favorites(user_id), item_reactions(item_id, user_id, emoji)',
+      )
+      .eq('id', id)
+      .order('position', { referencedTable: 'list_items', ascending: true })
+      .maybeSingle(),
+  )
+
+// Delete several notifications in one request.
+export const deleteNotifications = async (ids) => unwrap(await supabase.from('notifications').delete().in('id', ids))

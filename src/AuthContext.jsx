@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase.js'
 
 const AuthContext = createContext(null)
@@ -9,8 +9,10 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [recovering, setRecovering] = useState(false)
+  const loadedFor = useRef(null) // whose profile is already loaded
 
   const loadProfile = useCallback(async (userId) => {
+    loadedFor.current = userId
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
     setProfile(data ?? null)
   }, [])
@@ -29,9 +31,15 @@ export function AuthProvider({ children }) {
       setSession(next)
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)
       if (next) {
-        // defer: calling supabase inside this callback can deadlock the auth client
-        setTimeout(() => loadProfile(next.user.id), 0)
+        // Only fetch the profile when a different person signs in. Supabase also fires this when the app
+        // regains focus or refreshes its login token, and each refetch would be a pointless request.
+        if (loadedFor.current !== next.user.id) {
+          loadedFor.current = next.user.id
+          // defer: calling supabase inside this callback can deadlock the auth client
+          setTimeout(() => loadProfile(next.user.id), 0)
+        }
       } else {
+        loadedFor.current = null
         setProfile(null)
       }
     })

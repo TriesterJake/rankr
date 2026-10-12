@@ -6,7 +6,7 @@ import { useNotifications } from '../NotificationsContext.jsx'
 import {
   acceptFriendRequest,
   clearNotifications,
-  deleteNotification,
+  deleteNotifications,
   getFriendships,
   getNotifications,
   markAllNotificationsRead,
@@ -145,8 +145,10 @@ export default function ActivityPage() {
   const [pushBusy, setPushBusy] = useState(false)
   const [busyId, setBusyId] = useState(null)
   const pickedTab = useRef(false)
+  const lastLoad = useRef(0)
 
   const load = useCallback(async () => {
+    lastLoad.current = Date.now()
     try {
       const rows = await getNotifications()
       // rows stay highlighted as "new" for this visit, but everything is marked read for real right away
@@ -161,7 +163,7 @@ export default function ActivityPage() {
       setItems([])
     }
     try {
-      setFriendships(await getFriendships(user.id))
+      setFriendships(await getFriendships(user.id, true))
     } catch {
       setFriendships([])
     }
@@ -170,7 +172,8 @@ export default function ActivityPage() {
   useEffect(() => {
     load()
     getPushStatus().then(setPushStatus)
-    const onVisible = () => document.visibilityState === 'visible' && load()
+    // coming back to the app: refresh, but not more than once every 45 seconds
+    const onVisible = () => document.visibilityState === 'visible' && Date.now() - lastLoad.current > 45000 && load()
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
@@ -230,7 +233,7 @@ export default function ActivityPage() {
     const ids = new Set(g.rows.map((r) => r.id))
     setItems((cur) => cur.filter((x) => !ids.has(x.id)))
     try {
-      await Promise.all(g.rows.map((r) => deleteNotification(r.id)))
+      await deleteNotifications(g.rows.map((r) => r.id))
     } catch {
       toast('Could not remove that')
       load()
@@ -243,7 +246,7 @@ export default function ActivityPage() {
     setItems((cur) => cur.filter((x) => x.type === 'friend_request'))
     try {
       // friend requests stay: they are answered with Accept / Decline
-      await Promise.all(updates.map((n) => deleteNotification(n.id)))
+      if (updates.length) await deleteNotifications(updates.map((n) => n.id))
       await refreshUnread()
     } catch {
       toast('Could not clear your notifications')

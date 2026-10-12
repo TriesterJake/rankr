@@ -6,7 +6,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { addItems, copyItems, createList, deleteItem, deleteList, getItems, getFavoriters, getLikers, getLikes, getList, getListsByOwner, getMyFavorite, getReactions, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
+import { addItems, copyItems, createList, deleteItem, deleteList, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
@@ -210,19 +210,21 @@ export default function ListPage() {
 
   const load = useCallback(async () => {
     try {
-      const found = await getList(id)
+      // one request brings back the list, its items, likes, favorites and reactions
+      const full = await getListFull(id)
+      const found = full ? { ...full } : null
+      if (found) {
+        delete found.list_items
+        delete found.list_likes
+        delete found.list_favorites
+        delete found.item_reactions
+      }
       setList(found)
       if (found) {
-        commit(await getItems(id))
-        getLikes(id)
-          .then((rows) => setLikes(rows.map((r) => r.user_id)))
-          .catch(() => setLikes([]))
-        getFavoriters(id)
-          .then((rows) => setFavs(rows.map((r) => r.user_id)))
-          .catch(() => setFavs([]))
-        getReactions(id)
-          .then(setReactions)
-          .catch(() => setReactions([]))
+        commit([...(full.list_items || [])].sort((a, b) => a.position - b.position))
+        setLikes((full.list_likes || []).map((r) => r.user_id))
+        setFavs((full.list_favorites || []).map((r) => r.user_id))
+        setReactions(full.item_reactions || [])
         if (found.owner_id !== user.id) {
           getMyFavorite(found.owner_id, user.id)
             .then((row) => setMyFav(row?.list ? { id: row.list.id, title: row.list.title } : null))

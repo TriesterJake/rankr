@@ -54,14 +54,25 @@ export async function disablePush() {
 }
 
 // On sign-in: if this phone already allowed notifications, attach it to whoever is signed in now.
-export async function syncPushSubscription() {
+export async function syncPushSubscription(userId) {
   try {
+    const mark = `rankr-push-${userId}`
+    try {
+      if (Date.now() - Number(localStorage.getItem(mark) || 0) < 24 * 3600 * 1000) return
+    } catch {
+      /* storage unavailable: just sync */
+    }
     if ((await getPushStatus()) !== 'on') return
     const reg = await navigator.serviceWorker.ready
     const sub = await reg.pushManager.getSubscription()
     if (!sub) return
     const json = sub.toJSON()
     await savePushSubscription(json.endpoint, json.keys.p256dh, json.keys.auth)
+    try {
+      localStorage.setItem(mark, String(Date.now()))
+    } catch {
+      /* fine */
+    }
   } catch {
     /* try again next time */
   }

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase.js'
@@ -16,14 +16,22 @@ export function NotificationsProvider({ children }) {
   const navigate = useNavigate()
   const [unread, setUnread] = useState(0)
 
-  const refreshUnread = useCallback(async () => {
-    if (!userId) return
-    try {
-      setUnread(await getUnreadCount())
-    } catch {
-      /* notifications not set up yet, or offline: keep the last number */
-    }
-  }, [userId])
+  const lastCheck = useRef(0)
+
+  // force: skip the "checked a moment ago" shortcut (used after you change something yourself)
+  const refreshUnread = useCallback(
+    async (force = true) => {
+      if (!userId) return
+      if (force !== true && Date.now() - lastCheck.current < 45000) return
+      lastCheck.current = Date.now()
+      try {
+        setUnread(await getUnreadCount())
+      } catch {
+        /* notifications not set up yet, or offline: keep the last number */
+      }
+    },
+    [userId],
+  )
 
   useEffect(() => {
     if (!userId) {
@@ -32,15 +40,19 @@ export function NotificationsProvider({ children }) {
     }
     refreshUnread()
 
-    const onVisible = () => document.visibilityState === 'visible' && refreshUnread()
+    // coming back to the app: check again, but not more than once every 45 seconds
+    const onVisible = () => document.visibilityState === 'visible' && refreshUnread(false)
     document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', refreshUnread)
 
     let channel
     try {
       channel = supabase
         .channel(`notifications-${userId}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` }, refreshUnread)
+        // a new notification arrived: just count it, no extra request (the next check corrects any drift)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` }, () => {
+          lastCheck.current = Date.now()
+          setUnread((u) => u + 1)
+        })
         .subscribe()
     } catch {
       /* realtime unavailable: the other triggers still keep it fresh */
@@ -48,14 +60,13 @@ export function NotificationsProvider({ children }) {
 
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', refreshUnread)
       if (channel) supabase.removeChannel(channel)
     }
   }, [userId, refreshUnread])
 
   // Phone notifications: keep this device attached to the signed-in person.
   useEffect(() => {
-    if (userId) syncPushSubscription()
+    if (userId) syncPushSubscription(userId)
   }, [userId])
 
   // Tapping a phone notification while the app is open sends us here.
