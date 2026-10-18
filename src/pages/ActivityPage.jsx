@@ -12,7 +12,7 @@ import {
   markAllNotificationsRead,
   removeFriendship,
 } from '../api.js'
-import { groupNotifications, nameList } from '../activityGroups.js'
+import { describeEdit, groupNotifications, nameList } from '../activityGroups.js'
 import { clearDeliveredNotifications, disablePush, enablePush, getPushStatus } from '../push.js'
 import { Avatar, Empty, Modal, Spinner, TopBar } from '../components/ui.jsx'
 
@@ -47,16 +47,29 @@ function Message({ g }) {
           {who} made a new list {list}
         </>
       )
-    case 'edited_list':
-      return g.count > 1 ? (
+    case 'edited_list': {
+      if (g.lists > 1)
+        return (
+          <>
+            {who} updated <b>{g.lists} lists</b>
+          </>
+        )
+      if (g.count > 1)
+        return (
+          <>
+            {who} updated {list}
+          </>
+        )
+      const t = describeEdit(first).text
+      return (
         <>
-          {who} updated <b>{g.count} lists</b>
-        </>
-      ) : (
-        <>
-          {who} updated {list}
+          {who} {t.pre}
+          {t.old && <b>{t.old}</b>}
+          {t.mid}
+          <b>{t.list}</b>
         </>
       )
+    }
     case 'liked':
       return (
         <>
@@ -86,11 +99,22 @@ function Message({ g }) {
   }
 }
 
+// A smaller line under a combined "updated" row: what changed, or which lists.
+function subLine(g) {
+  if (g.type !== 'edited_list' || g.count < 2) return null
+  if (g.lists > 1) {
+    const titles = uniq(g.rows.map((r) => r.list_title || 'a list'))
+    return titles.length > 3 ? `${titles.slice(0, 3).join(', ')} and ${titles.length - 3} more` : titles.join(', ')
+  }
+  // newest change first, e.g. "changed the icon, added 3 items"
+  return uniq(g.rows.map((r) => describeEdit(r).short)).join(', ')
+}
+
 // Where tapping a row goes.
 function targetOf(g) {
   const first = g.rows[0]
   if (g.type === 'friend_accepted') return `/u/${first.actor?.id}`
-  if ((g.type === 'new_list' || g.type === 'edited_list') && g.count > 1) return `/u/${first.actor?.id}`
+  if ((g.type === 'new_list' && g.count > 1) || (g.type === 'edited_list' && g.lists > 1)) return `/u/${first.actor?.id}`
   if (!first.list_id) return null
   if (g.type === 'reacted' && g.count === 1 && first.item_id) return `/list/${first.list_id}?item=${first.item_id}`
   return `/list/${first.list_id}`
@@ -389,6 +413,11 @@ export default function ActivityPage() {
                       </span>
                       <span className="activity-text">
                         <Message g={g} />
+                        {subLine(g) && (
+                          <span className="muted small" style={{ display: 'block' }}>
+                            {subLine(g)}
+                          </span>
+                        )}
                         <span className="activity-time">{timeAgo(g.newest)}</span>
                       </span>
                       {g.unread && <span className="activity-dot" aria-label="Unread" />}

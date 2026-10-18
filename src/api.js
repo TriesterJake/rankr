@@ -128,7 +128,7 @@ export const getNotifications = async (limit = 100) =>
   unwrap(
     await supabase
       .from('notifications')
-      .select('id, type, list_id, item_id, list_title, item_title, emoji, created_at, read_at, actor:profiles!notifications_actor_id_fkey(id, username, display_name, avatar_path)')
+      .select('id, type, list_id, item_id, list_title, item_title, emoji, edit_kind, item_count, created_at, read_at, actor:profiles!notifications_actor_id_fkey(id, username, display_name, avatar_path)')
       .order('created_at', { ascending: false })
       .limit(limit),
   )
