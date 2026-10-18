@@ -160,13 +160,21 @@ export default function FriendsPage() {
       <div className="search">
         <input
           type="search"
+          name="rankr-people-search"
+          id="rankr-people-search"
+          inputMode="search"
+          enterKeyHint="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Find people by username"
+          placeholder="Search for people"
           autoCapitalize="none"
           autoCorrect="off"
+          spellCheck={false}
           autoComplete="off"
-          aria-label="Find people by username"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
+          aria-label="Search for people"
         />
       </div>
 
