@@ -79,3 +79,5 @@ export function nameList(actors) {
   const rest = names.length - 2
   return `${names[0]}, ${names[1]} and ${rest} ${rest === 1 ? 'other' : 'others'}`
 }
+
+export { changesParam } from './changeHighlights.js'

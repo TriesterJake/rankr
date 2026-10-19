@@ -1877,3 +1877,37 @@ button:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* what changed, when you open a list from an "updated" notification */
+.change-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 16px 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: 0.92rem;
+}
+.change-banner .text-btn {
+  flex: none;
+}
+.row.changed {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.change-chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}

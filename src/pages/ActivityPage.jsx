@@ -12,7 +12,7 @@ import {
   markAllNotificationsRead,
   removeFriendship,
 } from '../api.js'
-import { describeEdit, groupNotifications, nameList } from '../activityGroups.js'
+import { changesParam, describeEdit, groupNotifications, nameList } from '../activityGroups.js'
 import { clearDeliveredNotifications, disablePush, enablePush, getPushStatus } from '../push.js'
 import { Avatar, Empty, Modal, Spinner, TopBar } from '../components/ui.jsx'
 
@@ -117,6 +117,10 @@ function targetOf(g) {
   if ((g.type === 'new_list' && g.count > 1) || (g.type === 'edited_list' && g.lists > 1)) return `/u/${first.actor?.id}`
   if (!first.list_id) return null
   if (g.type === 'reacted' && g.count === 1 && first.item_id) return `/list/${first.list_id}?item=${first.item_id}`
+  if (g.type === 'edited_list') {
+    const c = changesParam(g.rows)
+    return c ? `/list/${first.list_id}?changes=${c}` : `/list/${first.list_id}`
+  }
   return `/list/${first.list_id}`
 }
 

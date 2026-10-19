@@ -6,6 +6,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
+import { changeSummary, parseChanges, pickChanged } from '../changeHighlights.js'
 import { addItems, copyItems, createList, deleteItem, deleteList, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
@@ -184,6 +185,9 @@ export default function ListPage() {
   const [likersMode, setLikersMode] = useState('likes')
   const [searchParams] = useSearchParams()
   const focusItem = searchParams.get('item')
+  const changesParam = searchParams.get('changes')
+  const [changeInfo, setChangeInfo] = useState(null) // { ids, summary } from a notification
+  const changesShown = useRef(false)
   const focused = useRef(null)
 
   const itemsRef = useRef([])
@@ -255,6 +259,17 @@ export default function ListPage() {
     requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${focusItem}`)?.scrollIntoView({ block: 'center' })))
     return () => clearTimeout(t)
   }, [focusItem, items])
+
+  // coming from an "updated" notification: highlight what changed and scroll to it
+  useEffect(() => {
+    if (!changesParam || changesShown.current || items.length === 0) return
+    changesShown.current = true
+    const changes = parseChanges(changesParam)
+    const { ids, labels } = pickChanged(items, changes)
+    setChangeInfo({ ids, labels, summary: changeSummary(changes) })
+    const first = items.find((i) => ids.includes(i.id))
+    if (first) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${first.id}`)?.scrollIntoView({ block: 'center' })))
+  }, [changesParam, items])
 
   // ---------- editing actions (owner only) ----------
 
@@ -701,6 +716,17 @@ export default function ListPage() {
         </div>
       )}
 
+      {changeInfo && changeInfo.summary && (
+        <div className="change-banner" role="status">
+          <span>
+            <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> made changes: {changeInfo.summary}
+          </span>
+          <button className="text-btn" onClick={() => setChangeInfo(null)}>
+            Got it
+          </button>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <Empty title={isOwner ? 'Nothing here yet' : 'This list is empty'}>
           {isOwner && 'Add your first item below. Tip: paste a whole list (one item per line) to add many at once.'}
@@ -739,7 +765,7 @@ export default function ListPage() {
       ) : (
         <ol className="rank-list">
           {shown.map(({ item, rank }) => (
-            <li key={item.id} id={`item-${item.id}`} className={flashIds.includes(item.id) ? 'row flash' : 'row'}>
+            <li key={item.id} id={`item-${item.id}`} className={`row${flashIds.includes(item.id) ? ' flash' : ''}${changeInfo?.ids.includes(item.id) ? ' changed' : ''}`}>
               <div className="row-main">
                 <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
                 {item.image_path && (
@@ -748,7 +774,10 @@ export default function ListPage() {
                   </button>
                 )}
                 <div className="row-text static">
-                  <span className="row-title">{item.title}</span>
+                  <span className="row-title">
+                    {item.title}
+                    {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
+                  </span>
                   {item.note && <span className="row-note">{item.note}</span>}
                 </div>
               </div>
