@@ -6,8 +6,8 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { changeSummary, parseChanges, pickChanged } from '../changeHighlights.js'
-import { addItems, copyItems, createList, deleteItem, deleteList, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
+import { changeSummary, changesParam as changesFromRows, parseChanges, pickChanged } from '../changeHighlights.js'
+import { addItems, copyItems, createList, deleteItem, deleteList, getEditHints, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
@@ -187,7 +187,7 @@ export default function ListPage() {
   const focusItem = searchParams.get('item')
   const changesParam = searchParams.get('changes')
   const [changeInfo, setChangeInfo] = useState(null) // { ids, summary } from a notification
-  const changesShown = useRef(false)
+  const changesShown = useRef('')
   const focused = useRef(null)
 
   const itemsRef = useRef([])
@@ -262,14 +262,22 @@ export default function ListPage() {
 
   // coming from an "updated" notification: highlight what changed and scroll to it
   useEffect(() => {
-    if (!changesParam || changesShown.current || items.length === 0) return
-    changesShown.current = true
-    const changes = parseChanges(changesParam)
-    const { ids, labels } = pickChanged(items, changes)
-    setChangeInfo({ ids, labels, summary: changeSummary(changes) })
-    const first = items.find((i) => ids.includes(i.id))
-    if (first) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${first.id}`)?.scrollIntoView({ block: 'center' })))
-  }, [changesParam, items])
+    if (!changesParam || changesShown.current === changesParam || items.length === 0) return
+    changesShown.current = changesParam
+    const apply = (param) => {
+      const changes = parseChanges(param)
+      const { ids, labels } = pickChanged(items, changes)
+      setChangeInfo({ ids, labels, summary: changeSummary(changes) })
+      const first = items.find((i) => ids.includes(i.id))
+      if (first) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${first.id}`)?.scrollIntoView({ block: 'center' })))
+    }
+    if (changesParam === 'auto') {
+      // opened from a phone notification: look up what changed
+      getEditHints(id)
+        .then((rows) => apply(changesFromRows(rows)))
+        .catch(() => {})
+    } else apply(changesParam)
+  }, [changesParam, items, id])
 
   // ---------- editing actions (owner only) ----------
 

@@ -110,6 +110,23 @@ function subLine(g) {
   return uniq(g.rows.map((r) => describeEdit(r).short)).join(', ')
 }
 
+// A combined row about several lists opens up to show each list (so you can jump to the one you want).
+const isMulti = (g) => (g.type === 'new_list' && g.count > 1) || (g.type === 'edited_list' && g.lists > 1)
+
+function listEntries(g) {
+  const byList = new Map()
+  for (const r of g.rows) {
+    if (!r.list_id) continue
+    if (!byList.has(r.list_id)) byList.set(r.list_id, { list_id: r.list_id, title: r.list_title || 'a list', rows: [] })
+    byList.get(r.list_id).rows.push(r)
+  }
+  return [...byList.values()].map((e) => {
+    if (g.type !== 'edited_list') return { ...e, text: 'new list', to: `/list/${e.list_id}` }
+    const c = changesParam(e.rows)
+    return { ...e, text: uniq(e.rows.map((r) => describeEdit(r).short)).join(', '), to: c ? `/list/${e.list_id}?changes=${c}` : `/list/${e.list_id}` }
+  })
+}
+
 // Where tapping a row goes.
 function targetOf(g) {
   const first = g.rows[0]
@@ -172,6 +189,7 @@ export default function ActivityPage() {
   const [pushStatus, setPushStatus] = useState('hidden')
   const [pushBusy, setPushBusy] = useState(false)
   const [busyId, setBusyId] = useState(null)
+  const [expanded, setExpanded] = useState([]) // keys of combined rows that are opened up
   const pickedTab = useRef(false)
   const lastLoad = useRef(0)
 
@@ -252,6 +270,10 @@ export default function ActivityPage() {
   }
 
   function open(g) {
+    if (isMulti(g)) {
+      setExpanded((cur) => (cur.includes(g.key) ? cur.filter((k) => k !== g.key) : [...cur, g.key]))
+      return
+    }
     const to = targetOf(g)
     if (to) navigate(to)
     else toast('That list is gone')
@@ -419,7 +441,7 @@ export default function ActivityPage() {
                         <Message g={g} />
                         {subLine(g) && (
                           <span className="muted small" style={{ display: 'block' }}>
-                            {subLine(g)}
+                            {subLine(g)} {isMulti(g) && (expanded.includes(g.key) ? '\u25B4' : '\u25BE')}
                           </span>
                         )}
                         <span className="activity-time">{timeAgo(g.newest)}</span>
@@ -429,6 +451,23 @@ export default function ActivityPage() {
                     <button className="activity-x" onClick={() => remove(g)} aria-label="Remove notification">
                       &times;
                     </button>
+                    {isMulti(g) && expanded.includes(g.key) && (
+                      <ul className="activity-sublist">
+                        {listEntries(g).map((e) => (
+                          <li key={e.list_id}>
+                            <button onClick={() => navigate(e.to)}>
+                              <b>{e.title}</b>
+                              <span className="muted small">{e.text}</span>
+                            </button>
+                          </li>
+                        ))}
+                        <li>
+                          <button onClick={() => navigate(`/u/${g.rows[0].actor?.id}`)}>
+                            <span className="muted small">See all of {g.actors[0]?.display_name || g.actors[0]?.username}&rsquo;s lists</span>
+                          </button>
+                        </li>
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>

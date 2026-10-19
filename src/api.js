@@ -133,6 +133,23 @@ export const getNotifications = async (limit = 100) =>
       .limit(limit),
   )
 
+// What changed in a list since you last looked (used when you open a list from a phone notification):
+// your unread "edited" notifications for it, or, if you already saw them, the ones from the last hour.
+export const getEditHints = async (listId) => {
+  const rows = unwrap(
+    await supabase
+      .from('notifications')
+      .select('edit_kind, item_count, created_at, read_at')
+      .eq('type', 'edited_list')
+      .eq('list_id', listId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  )
+  const unread = rows.filter((r) => !r.read_at)
+  if (unread.length) return unread
+  return rows.filter((r) => Date.now() - new Date(r.created_at).getTime() < 60 * 60 * 1000)
+}
+
 export const getUnreadCount = async () => {
   const { count, error } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null)
   if (error) throw error

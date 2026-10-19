@@ -1911,3 +1911,28 @@ button:focus-visible {
   text-transform: uppercase;
   vertical-align: middle;
 }
+
+/* a combined "updated N lists" row, opened up */
+.activity-row {
+  flex-wrap: wrap;
+}
+.activity-sublist {
+  flex: 0 0 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px 56px;
+}
+.activity-sublist button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
