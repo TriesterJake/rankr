@@ -1991,3 +1991,7 @@ button:focus-visible {
   flex: none;
   accent-color: var(--accent);
 }
+
+.announce-avatar {
+  background: var(--surface-2);
+}

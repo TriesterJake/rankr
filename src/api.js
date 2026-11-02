@@ -128,7 +128,7 @@ export const getNotifications = async (limit = 100) =>
   unwrap(
     await supabase
       .from('notifications')
-      .select('id, type, list_id, item_id, list_title, item_title, emoji, edit_kind, item_count, created_at, read_at, actor:profiles!notifications_actor_id_fkey(id, username, display_name, avatar_path)')
+      .select('id, type, list_id, item_id, list_title, item_title, emoji, edit_kind, item_count, link, created_at, read_at, actor:profiles!notifications_actor_id_fkey(id, username, display_name, avatar_path)')
       .order('created_at', { ascending: false })
       .limit(limit),
   )
@@ -315,5 +315,5 @@ export const localDay = () => {
 // Your own random set of list titles for today: [{ title, friends: [{ id, username, display_name, avatar_path, list_id }], others }]
 export const getListIdeas = async (fresh = false) => {
   const day = localDay()
-  return remember(`ideas:${day}`, 300000, async () => unwrap(await supabase.rpc('list_ideas', { p_day: day, p_limit: 20 })), fresh)
+  return remember(`ideas:${day}`, 300000, async () => unwrap(await supabase.rpc('list_ideas', { p_day: day, p_limit: 10 })), fresh)
 }

@@ -6,7 +6,7 @@ import { createList, getListIdeas, getListsByOwner, localDay } from '../api.js'
 import { TEMPLATES, randomColor } from '../templates.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
 
-const IDEA_COUNT = 20
+const IDEA_COUNT = 10 // keep in step with p_limit in getListIdeas (api.js)
 
 // Same rule as idea_key() in the database: "Favorite Songs!" = "favorite songs".
 const ideaKey = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() || t.toLowerCase().trim()

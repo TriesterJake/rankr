@@ -16,7 +16,7 @@ import { changesParam, describeEdit, groupNotifications, nameList } from '../act
 import { clearDeliveredNotifications, disablePush, enablePush, getPushStatus } from '../push.js'
 import { Avatar, Empty, Modal, Spinner, TopBar } from '../components/ui.jsx'
 
-const GLYPH = { new_list: '📝', edited_list: '✏️', liked: '❤️', favorited: '⭐', friend_accepted: '🤝' }
+const GLYPH = { new_list: '📝', edited_list: '✏️', liked: '❤️', favorited: '⭐', friend_accepted: '🤝', announcement: '📣' }
 
 export function timeAgo(iso, now = Date.now()) {
   const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000))
@@ -94,6 +94,13 @@ function Message({ g }) {
       )
     case 'friend_accepted':
       return <>{who} accepted your friend request</>
+    case 'announcement':
+      // from RankR itself: headline in list_title, the rest in item_title
+      return (
+        <>
+          <b>{first.list_title}</b> {first.item_title}
+        </>
+      )
     default:
       return <>{who} did something</>
   }
@@ -130,6 +137,7 @@ function listEntries(g) {
 // Where tapping a row goes.
 function targetOf(g) {
   const first = g.rows[0]
+  if (g.type === 'announcement') return first.link || null
   if (g.type === 'friend_accepted') return `/u/${first.actor?.id}`
   if ((g.type === 'new_list' && g.count > 1) || (g.type === 'edited_list' && g.lists > 1)) return `/u/${first.actor?.id}`
   if (!first.list_id) return null
@@ -432,7 +440,13 @@ export default function ActivityPage() {
                   <li key={g.key} className={g.unread ? 'activity-row new' : 'activity-row'}>
                     <button className="activity-main" onClick={() => open(g)}>
                       <span className="activity-avatar">
-                        <Avatar profile={g.actors[0]} size={44} />
+                        {g.type === 'announcement' ? (
+                          <span className="avatar announce-avatar" style={{ width: 44, height: 44 }}>
+                            <img src="/pwa-192.png" alt="" />
+                          </span>
+                        ) : (
+                          <Avatar profile={g.actors[0]} size={44} />
+                        )}
                         <span className="activity-glyph" aria-hidden="true">
                           {g.type === 'reacted' ? g.rows[0].emoji : GLYPH[g.type]}
                         </span>
