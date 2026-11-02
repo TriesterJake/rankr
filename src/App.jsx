@@ -13,6 +13,7 @@ import ComparePage from './pages/ComparePage.jsx'
 import MultiComparePage from './pages/MultiComparePage.jsx'
 import ActivityPage from './pages/ActivityPage.jsx'
 import MePage from './pages/MePage.jsx'
+import IdeasPage from './pages/IdeasPage.jsx'
 
 export default function App() {
   const { session, loading, recovering, finishRecovery } = useAuth()
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="u/:id" element={<ProfilePage />} />
             <Route path="compare/:mine/:theirs" element={<ComparePage />} />
             <Route path="compare-many" element={<MultiComparePage />} />
+            <Route path="ideas" element={<IdeasPage />} />
             <Route path="activity" element={<ActivityPage />} />
             <Route path="me" element={<MePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -49,11 +49,11 @@ export const getList = async (id) =>
       .maybeSingle(),
   )
 
-export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position }) =>
+export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position, show_in_ideas = true }) =>
   unwrapW(
     await supabase
       .from('lists')
-      .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position })
+      .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position, show_in_ideas })
       .select()
       .single(),
   )
@@ -303,3 +303,17 @@ export const getListFull = async (id) =>
 
 // Delete several notifications in one request.
 export const deleteNotifications = async (ids) => unwrap(await supabase.from('notifications').delete().in('id', ids))
+
+// ---------- Ideas (list titles you could make) ----------
+
+// Today's date on this phone, e.g. "2026-11-02", so the ideas change at your own midnight.
+export const localDay = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Your own random set of list titles for today: [{ title, friends: [{ id, username, display_name, avatar_path, list_id }], others }]
+export const getListIdeas = async (fresh = false) => {
+  const day = localDay()
+  return remember(`ideas:${day}`, 300000, async () => unwrap(await supabase.rpc('list_ideas', { p_day: day, p_limit: 20 })), fresh)
+}

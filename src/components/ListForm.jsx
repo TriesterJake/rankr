@@ -6,7 +6,7 @@ import { COLORS, TEMPLATES, randomColor, inkOn } from '../templates.js'
 
 // Used both to create a list and to edit its settings.
 export default function ListForm({ initial, submitLabel, showTemplates, onSubmit, onDelete }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const toast = useToast()
   const [iconPath, setIconPath] = useState(initial?.icon_path ?? null)
   const [photoBusy, setPhotoBusy] = useState(false)
@@ -15,6 +15,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
   const [icon, setIcon] = useState(initial?.icon ?? '')
   const [color, setColor] = useState(() => initial?.color ?? randomColor())
   const [visibility, setVisibility] = useState(initial?.visibility ?? 'friends')
+  const [showInIdeas, setShowInIdeas] = useState(initial?.show_in_ideas ?? true)
   const [busy, setBusy] = useState(false)
   const isCustom = !COLORS.includes(color)
 
@@ -24,7 +25,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
     if (!clean || busy) return
     setBusy(true)
     try {
-      const ok = await onSubmit({ title: clean, icon: icon.trim().slice(0, 4), icon_path: iconPath, color, visibility })
+      const ok = await onSubmit({ title: clean, icon: icon.trim().slice(0, 4), icon_path: iconPath, color, visibility, show_in_ideas: showInIdeas })
       if (ok !== false) {
         unsaved.current = null
         // the old picture is no longer used once the change is saved
@@ -165,6 +166,27 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
           </button>
         </div>
       </div>
+
+      {visibility === 'friends' && (
+        <div className="field">
+          <label className="toggle-row">
+            <span>
+              <span className="label">Suggest this title on Ideas</span>
+              <span className="muted small" style={{ display: 'block' }}>
+                {profile && profile.show_in_ideas === false
+                  ? 'You turned this off for all your lists on the Me tab.'
+                  : 'Only the title is shown. Friends see your name; everyone else sees “someone you don’t know.”'}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={showInIdeas}
+              disabled={profile?.show_in_ideas === false}
+              onChange={(e) => setShowInIdeas(e.target.checked)}
+            />
+          </label>
+        </div>
+      )}
 
       <button className="btn primary block" disabled={busy || photoBusy || !title.trim()}>
         {busy ? 'Saving...' : submitLabel}

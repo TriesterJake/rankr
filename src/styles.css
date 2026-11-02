@@ -1936,3 +1936,58 @@ button:focus-visible {
   text-align: left;
   cursor: pointer;
 }
+/* ---------- Ideas ---------- */
+
+.idea-row .idea-text {
+  flex: 1;
+}
+.idea-text b {
+  white-space: normal;
+}
+.idea-popular {
+  margin-left: 8px;
+  vertical-align: 2px;
+  color: var(--gold);
+  border-color: color-mix(in srgb, var(--gold) 45%, var(--border));
+  background: color-mix(in srgb, var(--gold) 12%, var(--surface-2));
+}
+.idea-who {
+  line-height: 1.35;
+}
+.idea-friend {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+.idea-faces {
+  flex: none;
+  display: flex;
+  width: 52px;
+  justify-content: center;
+}
+.idea-faces .avatar + .avatar {
+  margin-left: -12px;
+}
+.idea-faces .avatar {
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.idea-unknown {
+  width: 40px;
+  height: 40px;
+  font-size: 17px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.toggle-row input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  accent-color: var(--accent);
+}

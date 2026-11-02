@@ -32,6 +32,17 @@ opens full screen like a regular app, and can send phone notifications when frie
 - Smart matching: ignores capitalization and punctuation, forgives small spelling mistakes
   ("Spiderman" = "Spider-Man"), and spots items with a similar meaning ("eating" and "food" count as a partial match)
 
+**Ideas**
+- An Ideas tab with 20 list titles you could make, different for every person and new every day (no cron job: the
+  order comes from a hash of your id, the date and the title, so it changes by itself at your midnight)
+- Each idea says who made it. Friends' names link to their list, so you can copy it with all its items;
+  people you don't know only show up as "someone you don't know", and their lists can't be opened
+- At least 6 of the 20 come from friends (when there are that many). Every title has the same chance of being
+  picked however many people made it, and titles in the top 10% by number of people get a "Popular" badge
+- "Make it" starts your own empty list with that title. Titles you already have are never suggested
+- Only lists shared with friends are used. Turn off one list in its settings, or all of yours on the Me tab
+- On a quiet day the page is topped up with starter ideas
+
 **Activity and notifications**
 - An Activity tab with a red badge shows what your friends did: new lists, edits, likes, favorites, reactions,
   and accepted friend requests. Friend requests have their own tab and keep the red number until you answer them
@@ -65,7 +76,7 @@ a small Edge Function for push), hosted on Vercel.
    already has a table with that name, don't run the schema there.)
 2. Open **SQL Editor -> New query**, paste all of `supabase/schema.sql`, and click **Run**.
    This creates the tables, the friend-only visibility rules, the notification triggers, and the security
-   policies. `schema.sql` already includes every update (`update-2.sql` to `update-12.sql`), so a new project
+   policies. `schema.sql` already includes every update (`update-2.sql` to `update-14.sql`), so a new project
    only needs this one file.
 3. Go to **Project Settings -> API** (or the **Connect** button) and copy the **Project URL** and the
    **anon / publishable key**.

@@ -13,6 +13,7 @@ export default function MePage() {
   const [name, setName] = useState(profile?.display_name ?? '')
   const [busy, setBusy] = useState(false)
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [ideasBusy, setIdeasBusy] = useState(false)
 
   // the profile can finish loading after this page first renders
   useEffect(() => {
@@ -50,6 +51,20 @@ export default function MePage() {
       toast('Could not update your picture')
     } finally {
       setPhotoBusy(false)
+    }
+  }
+
+  async function toggleIdeas(on) {
+    if (!profile) return
+    setIdeasBusy(true)
+    try {
+      await updateProfile(profile.id, { show_in_ideas: on })
+      await refreshProfile()
+      toast(on ? 'Your list titles can be suggested again' : 'Your list titles are hidden from Ideas')
+    } catch {
+      toast('Could not save')
+    } finally {
+      setIdeasBusy(false)
     }
   }
 
@@ -112,6 +127,24 @@ export default function MePage() {
           {busy ? 'Saving...' : 'Save name'}
         </button>
       </form>
+
+      <div className="card">
+        <label className="toggle-row">
+          <span>
+            <b>Suggest my list titles on Ideas</b>
+            <p className="muted small">
+              Lets other people get ideas from your list titles (never items, and never &ldquo;Only me&rdquo; lists). Friends see your
+              name; everyone else sees &ldquo;someone you don&rsquo;t know.&rdquo; You can also turn this off for one list in its settings.
+            </p>
+          </span>
+          <input
+            type="checkbox"
+            checked={profile?.show_in_ideas !== false}
+            disabled={!profile || ideasBusy}
+            onChange={(e) => toggleIdeas(e.target.checked)}
+          />
+        </label>
+      </div>
 
       {!isStandalone() && (
         <div className="card install-tip">

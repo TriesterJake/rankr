@@ -32,6 +32,13 @@ export default function Layout() {
           </Icon>
           <span>Friends</span>
         </NavLink>
+        <NavLink to="/ideas" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          <Icon>
+            <path d="M9 18h6M10 22h4" />
+            <path d="M12 2a7 7 0 00-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0012 2z" />
+          </Icon>
+          <span>Ideas</span>
+        </NavLink>
         <NavLink to="/activity" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           <span className="tab-icon">
             <Icon>
