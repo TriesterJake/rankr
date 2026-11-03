@@ -160,9 +160,7 @@ code {
   margin: 0 -14px;
   padding-left: 14px;
   padding-right: 14px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--bg);
 }
 
 .topbar-side {

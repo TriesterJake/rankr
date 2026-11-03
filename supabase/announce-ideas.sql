@@ -10,8 +10,9 @@
 insert into public.notifications (recipient_id, actor_id, type, list_title, item_title, link)
 select p.id, null, 'announcement',
        'New: the Ideas tab!',
-       'Get fresh list ideas every day. The titles of your shared lists can now show up there too (never the items, '
-       || 'and never "Only me" lists). To turn this off for all your lists, go to the Me tab. '
+       'Get fresh list ideas every day. The titles of your shared lists can now show up there for your friends '
+       || 'and for people you don''t know. People you don''t know only ever see the title, never your name or your items. '
+       || '"Only me" lists are never included. To turn this off for all your lists, go to the Me tab. '
        || 'For just one list, open that list''s settings.',
        '/ideas'
   from public.profiles p;
