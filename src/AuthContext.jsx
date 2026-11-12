@@ -59,6 +59,7 @@ export function AuthProvider({ children }) {
     loading,
     recovering,
     finishRecovery: () => setRecovering(false),
+    startRecovery: () => setRecovering(true),
     refreshProfile: () => (session ? loadProfile(session.user.id) : Promise.resolve()),
     signOut,
   }

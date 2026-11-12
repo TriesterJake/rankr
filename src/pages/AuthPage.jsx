@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../AuthContext.jsx'
 import { supabase, configured } from '../supabase.js'
 import { usernameAvailable } from '../api.js'
 
@@ -54,7 +55,9 @@ export function ResetPassword({ onDone }) {
 }
 
 export default function AuthPage() {
-  const [mode, setMode] = useState('signin') // signin | signup | forgot
+  const { startRecovery, finishRecovery } = useAuth()
+  const [mode, setMode] = useState('signin') // signin | signup | forgot | verify | resetcode
+  const [code, setCode] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -66,6 +69,18 @@ export default function AuthPage() {
     setMode(next)
     setError('')
     setInfo('')
+    setCode('')
+  }
+
+  async function resendCode() {
+    setError('')
+    setInfo('')
+    const { error: err } =
+      mode === 'verify'
+        ? await supabase.auth.resend({ type: 'signup', email: email.trim() })
+        : await supabase.auth.resetPasswordForEmail(email.trim())
+    if (err) return setError(err.message)
+    setInfo('A new code is on its way.')
   }
 
   async function submit(e) {
@@ -75,9 +90,28 @@ export default function AuthPage() {
     if (!configured) return setError('Supabase is not configured yet.')
     setBusy(true)
     try {
-      if (mode === 'signin') {
+      if (mode === 'verify') {
+        // Proves the person owns this inbox. On success they are signed in automatically.
+        const { error: err } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'signup' })
+        if (err) throw new Error('That code is wrong or has expired. Check it, or ask for a new one.')
+      } else if (mode === 'resetcode') {
+        startRecovery() // so the "choose a new password" screen shows as soon as the code checks out
+        const { error: err } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'recovery' })
+        if (err) {
+          finishRecovery()
+          throw new Error('That code is wrong or has expired. Check it, or ask for a new one.')
+        }
+      } else if (mode === 'signin') {
         const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-        if (err) throw err
+        if (err) {
+          if (/not confirmed/i.test(err.message)) {
+            await supabase.auth.resend({ type: 'signup', email: email.trim() }).catch(() => {})
+            setMode('verify')
+            setInfo('Your email isn\'t confirmed yet. We sent you a code.')
+            return
+          }
+          throw err
+        }
       } else if (mode === 'signup') {
         const uname = username.trim().toLowerCase()
         if (!USERNAME_RE.test(uname)) throw new Error('Username must be 3-20 characters: letters, numbers or underscores.')
@@ -91,16 +125,14 @@ export default function AuthPage() {
         })
         if (err) throw err
         if (!data.session) {
-          setInfo('Check your email for a confirmation link, then come back and sign in.')
-          setMode('signin')
+          setMode('verify')
+          setInfo(`We sent a code to ${email.trim()}. Enter it to finish creating your account.`)
         }
       } else {
-        const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: window.location.origin,
-        })
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim())
         if (err) throw err
-        setInfo('If that email has an account, a reset link is on its way.')
-        setMode('signin')
+        setMode('resetcode')
+        setInfo('If that email has an account, a code is on its way. Enter it below.')
       }
     } catch (err) {
       setError(err.message || 'Something went wrong.')
@@ -115,7 +147,9 @@ export default function AuthPage() {
         <h1 className="brand">RankR</h1>
         <p className="muted tagline">Rank your favorite things. Compare with friends.</p>
 
-        <h2>{mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create your account' : 'Reset your password'}</h2>
+        <h2>
+          {mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create your account' : mode === 'verify' ? 'Confirm your email' : 'Reset your password'}
+        </h2>
 
         {mode === 'signup' && (
           <label className="field">
@@ -135,10 +169,32 @@ export default function AuthPage() {
 
         <label className="field">
           <span className="label">Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            autoCapitalize="none"
+            disabled={mode === 'verify' || mode === 'resetcode'}
+            required
+          />
         </label>
 
-        {mode !== 'forgot' && (
+        {(mode === 'verify' || mode === 'resetcode') && (
+          <label className="field">
+            <span className="label">Code from your email</span>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\s/g, ''))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={10}
+              required
+            />
+          </label>
+        )}
+
+        {mode !== 'forgot' && mode !== 'verify' && mode !== 'resetcode' && (
           <label className="field">
             <span className="label">Password</span>
             <input
@@ -155,7 +211,17 @@ export default function AuthPage() {
         {info && <p className="info">{info}</p>}
 
         <button className="btn primary block" disabled={busy}>
-          {busy ? 'One sec...' : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
+          {busy
+            ? 'One sec...'
+            : mode === 'signin'
+              ? 'Sign in'
+              : mode === 'signup'
+                ? 'Create account'
+                : mode === 'verify'
+                  ? 'Confirm email'
+                  : mode === 'resetcode'
+                    ? 'Check code'
+                    : 'Email me a code'}
         </button>
 
         <div className="auth-links">
@@ -168,6 +234,11 @@ export default function AuthPage() {
                 Forgot password?
               </button>
             </>
+          )}
+          {(mode === 'verify' || mode === 'resetcode') && (
+            <button type="button" className="text-btn muted" onClick={resendCode}>
+              Send a new code
+            </button>
           )}
           {mode !== 'signin' && (
             <button type="button" className="text-btn" onClick={() => switchMode('signin')}>

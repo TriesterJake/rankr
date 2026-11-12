@@ -317,3 +317,20 @@ export const getListIdeas = async (fresh = false) => {
   const day = localDay()
   return remember(`ideas:${day}`, 300000, async () => unwrap(await supabase.rpc('list_ideas', { p_day: day, p_limit: 10 })), fresh)
 }
+
+
+// ---------- Delete account ----------
+
+// Removes the person's uploaded photos, then their account (and, by cascade, everything they made).
+export async function deleteMyAccount(userId) {
+  try {
+    const folder = supabase.storage.from('item-images')
+    const { data } = await folder.list(userId, { limit: 1000 })
+    if (data?.length) await folder.remove(data.map((f) => `${userId}/${f.name}`))
+  } catch {
+    /* photos are best-effort; the account itself still gets deleted */
+  }
+  unwrap(await supabase.rpc('delete_my_account'))
+  bustCache()
+  await supabase.auth.signOut().catch(() => {})
+}

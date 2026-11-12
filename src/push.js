@@ -1,4 +1,5 @@
 import { deletePushSubscription, savePushSubscription } from './api.js'
+import { isNative } from './native.js'
 
 const PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -18,7 +19,7 @@ const isInstalled = () => window.matchMedia?.('(display-mode: standalone)').matc
 // 'off' | 'on'    -> can be switched on / is on for this device
 export async function getPushStatus() {
   try {
-    if (!PUBLIC_KEY) return 'hidden'
+    if (!PUBLIC_KEY || isNative()) return 'hidden' // the iPhone app doesn't use web push (yet)
     if (isIos() && !isInstalled()) return 'needs-install'
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'hidden'
     if (Notification.permission === 'denied') return 'blocked'
