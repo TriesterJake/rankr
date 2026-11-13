@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { getFriendships, getListsByOwner, getProfile, removeFriendship } from '../api.js'
+import { getFriendships, getListsByOwner, getMyBlocks, getProfile, removeFriendship, unblockUser } from '../api.js'
 import { sameTopic } from '../compare.js'
 import { Avatar, Empty, SearchBox, Spinner, TopBar } from '../components/ui.jsx'
 import ListCard from '../components/ListCard.jsx'
+import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 export default function ProfilePage() {
   const { id } = useParams()
@@ -19,15 +20,21 @@ export default function ProfilePage() {
   const [friendship, setFriendship] = useState(null)
   const [ready, setReady] = useState(false)
   const [query, setQuery] = useState('')
+  const [blocked, setBlocked] = useState(false) // I blocked them
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [reporting, setReporting] = useState(null)
+  const [blocking, setBlocking] = useState(null)
 
   const load = useCallback(async () => {
     try {
-      const [p, theirs, mine, friendships] = await Promise.all([
+      const [p, theirs, mine, friendships, blocks] = await Promise.all([
         getProfile(id),
         getListsByOwner(id),
         getListsByOwner(user.id),
         getFriendships(user.id),
+        getMyBlocks().catch(() => []),
       ])
+      setBlocked(blocks.some((b) => b.blocked_id === id))
       setProfile(p)
       setLists(theirs)
       setMyLists(mine)
@@ -52,6 +59,17 @@ export default function ProfilePage() {
       navigate('/friends', { replace: true })
     } catch {
       toast('Could not remove friend')
+    }
+  }
+
+  async function unblock() {
+    try {
+      await unblockUser(user.id, id)
+      setBlocked(false)
+      toast(`@${profile.username} is unblocked`)
+      load()
+    } catch {
+      toast('Could not unblock')
     }
   }
 
@@ -98,14 +116,33 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopBar title={profile.display_name || profile.username} subtitle={`@${profile.username}`} back />
+      <TopBar
+        title={profile.display_name || profile.username}
+        subtitle={`@${profile.username}`}
+        back
+        right={id !== user.id && <MoreButton onClick={() => setMenuOpen(true)} />}
+      />
+
+      <ActionSheet
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={`@${profile.username}`}
+        actions={[
+          { label: 'Report profile', onClick: () => setReporting({ type: 'profile', id, name: `@${profile.username}` }) },
+          blocked
+            ? { label: `Unblock @${profile.username}`, onClick: unblock }
+            : { label: `Block @${profile.username}`, danger: true, onClick: () => setBlocking(profile) },
+        ]}
+      />
+      <ReportSheet target={reporting} onClose={() => setReporting(null)} />
+      <BlockModal profile={blocking} onClose={() => setBlocking(null)} onBlocked={() => navigate('/friends', { replace: true })} />
 
       <div className="profile-head">
         <Avatar profile={profile} size={64} zoom />
         <div>
           <b>{profile.display_name || profile.username}</b>
           <p className="muted small">
-            {isFriend ? `${lists.length} shared ${lists.length === 1 ? 'list' : 'lists'}` : 'Not friends yet'}
+            {blocked ? 'Blocked' : isFriend ? `${lists.length} shared ${lists.length === 1 ? 'list' : 'lists'}` : 'Not friends yet'}
           </p>
         </div>
       </div>

@@ -213,6 +213,7 @@ export const usernameAvailable = async (username) =>
 export const searchProfiles = async (query, myId) => {
   const q = query.trim().toLowerCase().replace(/[%,()*\\]/g, '')
   if (q.length < 2) return []
+  const blocked = await getBlockedIds().catch(() => new Set())
   const data = unwrap(
     await supabase
       .from('profiles')
@@ -221,7 +222,7 @@ export const searchProfiles = async (query, myId) => {
       .neq('id', myId)
       .limit(10),
   )
-  return data
+  return data.filter((p) => !blocked.has(p.id))
 }
 
 // ---------- Friends ----------
@@ -334,3 +335,41 @@ export async function deleteMyAccount(userId) {
   bustCache()
   await supabase.auth.signOut().catch(() => {})
 }
+
+// ---------- Safety: word filter, reports, blocking, hidden ideas, terms ----------
+
+// false when a name contains a word on the blocked list (the same check the database makes).
+export const isClean = async (text) => unwrap(await supabase.rpc('is_clean', { t: text }))
+
+// type: 'list' | 'profile' | 'idea'. id is the list or profile id; title is the idea's title for ideas.
+// reason: 'sexual' | 'bullying' | 'hate' | 'violence' | 'spam' | 'other'
+export const reportContent = async ({ type, id = null, title = '', reason, details = '' }) =>
+  unwrapW(await supabase.rpc('report_content', { p_type: type, p_id: id, p_title: title, p_reason: reason, p_details: details }))
+
+export const blockUser = async (id) => unwrapW(await supabase.rpc('block_user', { p_id: id }))
+
+export const unblockUser = async (myId, id) =>
+  unwrapW(await supabase.from('blocks').delete().eq('blocker_id', myId).eq('blocked_id', id))
+
+// People I blocked, with their names, newest first.
+export const getMyBlocks = async (fresh = false) =>
+  remember('blocks', 60000, async () =>
+  unwrap(
+    await supabase
+      .from('blocks')
+      .select('blocked_id, created_at, profile:profiles!blocks_blocked_id_fkey(id, username, display_name, avatar_path)')
+      .order('created_at', { ascending: false }),
+  ), fresh)
+
+// Ids of everyone blocked either way (kept out of search).
+export const getBlockedIds = async () =>
+  remember('blocked-ids', 60000, async () =>
+    new Set((unwrap(await supabase.rpc('blocked_people')) || []).map((r) => (typeof r === 'string' ? r : Object.values(r)[0]))))
+
+export const getHiddenIdeas = async () =>
+  remember('hidden-ideas', 300000, async () => unwrap(await supabase.from('hidden_ideas').select('k')).map((r) => r.k))
+
+export const hideIdea = async (myId, key) =>
+  unwrapW(await supabase.from('hidden_ideas').upsert({ user_id: myId, k: key }, { onConflict: 'user_id,k', ignoreDuplicates: true }))
+
+export const acceptTerms = async () => unwrapW(await supabase.rpc('accept_terms'))

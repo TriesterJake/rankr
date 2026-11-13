@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabase.js'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { deleteMyAccount, updateProfile } from '../api.js'
+import { deleteMyAccount, getMyBlocks, unblockUser, updateProfile } from '../api.js'
 import { isNative } from '../native.js'
 import { removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, TopBar } from '../components/ui.jsx'
+import { SUPPORT_EMAIL } from './LegalPage.jsx'
 
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
 
@@ -22,6 +24,7 @@ export default function MePage() {
   const [emailCode, setEmailCode] = useState('')
   const [emailBusy, setEmailBusy] = useState(false)
   const [emailError, setEmailError] = useState('')
+  const [blocks, setBlocks] = useState(null) // loaded when "Blocked people" is opened
 
   // the profile can finish loading after this page first renders
   useEffect(() => {
@@ -37,8 +40,8 @@ export default function MePage() {
       await updateProfile(profile.id, { display_name: clean })
       await refreshProfile()
       toast('Saved')
-    } catch {
-      toast('Could not save')
+    } catch (err) {
+      toast(/inappropriate_name/.test(err?.message || '') ? 'That name isn’t allowed. Try a different one.' : 'Could not save')
     } finally {
       setBusy(false)
     }
@@ -115,6 +118,24 @@ export default function MePage() {
     } catch {
       toast('Could not delete your account. Try again.')
       setDeleting(false)
+    }
+  }
+
+  async function loadBlocks() {
+    try {
+      setBlocks(await getMyBlocks(true))
+    } catch {
+      setBlocks([])
+    }
+  }
+
+  async function unblock(b) {
+    try {
+      await unblockUser(user.id, b.blocked_id)
+      setBlocks((cur) => cur.filter((x) => x.blocked_id !== b.blocked_id))
+      toast(`@${b.profile?.username ?? 'them'} is unblocked`)
+    } catch {
+      toast('Could not unblock')
     }
   }
 
@@ -252,6 +273,37 @@ export default function MePage() {
           </p>
         </div>
       )}
+
+      <details className="card small-section" onToggle={(e) => e.currentTarget.open && blocks === null && loadBlocks()}>
+        <summary>Blocked people</summary>
+        {blocks === null && <p className="muted small">Loading...</p>}
+        {blocks && blocks.length === 0 && <p className="muted small">You haven&rsquo;t blocked anyone.</p>}
+        {blocks && blocks.length > 0 && (
+          <div className="pick-list blocked-list">
+            {blocks.map((b) => (
+              <div key={b.blocked_id} className="pick-row static">
+                <Avatar profile={b.profile} size={32} />
+                <span className="pick-title">@{b.profile?.username ?? 'deleted'}</span>
+                <button className="btn small" onClick={() => unblock(b)}>
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </details>
+
+      <details className="card small-section">
+        <summary>Help &amp; legal</summary>
+        <div className="help-links">
+          <Link to="/support">Help &amp; support</Link>
+          <Link to="/terms">Terms of Use</Link>
+          <Link to="/privacy">Privacy Policy</Link>
+          <p className="muted small">
+            Questions or problems? Email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+          </p>
+        </div>
+      </details>
 
       <button className="btn block spaced" onClick={signOut}>
         Sign out

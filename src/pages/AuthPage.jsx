@@ -1,9 +1,134 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext.jsx'
 import { supabase, configured } from '../supabase.js'
-import { usernameAvailable } from '../api.js'
+import { acceptTerms, deleteMyAccount, isClean, usernameAvailable } from '../api.js'
+import { LegalLinks, LegalSheet } from './LegalPage.jsx'
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/
+const MIN_AGE = 13
+
+// Whole years between a "YYYY-MM-DD" birthday and today.
+function ageOn(birthday) {
+  const [y, m, d] = birthday.split('-').map(Number)
+  if (!y || !m || !d) return NaN
+  const now = new Date()
+  let age = now.getFullYear() - y
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age -= 1
+  return age
+}
+
+const today = () => new Date().toISOString().slice(0, 10)
+
+// Birthday + "I agree" checkbox. Used at sign-up, and once for accounts made before the terms existed.
+function AgeAndTerms({ birthday, setBirthday, agreed, setAgreed }) {
+  const [reading, setReading] = useState(null)
+  return (
+    <>
+      <label className="field">
+        <span className="label">Birthday</span>
+        <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} max={today()} min="1900-01-01" required />
+        <span className="muted small">Only used to check your age. It isn&rsquo;t saved.</span>
+      </label>
+      <label className="check-row">
+        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
+        <span className="small">
+          I agree to the{' '}
+          <button type="button" className="inline-link" onClick={() => setReading('terms')}>
+            Terms of Use
+          </button>{' '}
+          and{' '}
+          <button type="button" className="inline-link" onClick={() => setReading('privacy')}>
+            Privacy Policy
+          </button>
+          .
+        </span>
+      </label>
+      <LegalSheet page={reading} onClose={() => setReading(null)} />
+    </>
+  )
+}
+
+function TooYoung({ children }) {
+  return (
+    <>
+      <h2>Sorry, you can&rsquo;t use RankR yet</h2>
+      <p className="muted">RankR is for people {MIN_AGE} and older.</p>
+      {children}
+    </>
+  )
+}
+
+// Accounts made before the Terms existed agree to them once.
+export function TermsGate({ userId, onDone, onSignOut }) {
+  const [birthday, setBirthday] = useState('')
+  const [agreed, setAgreed] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [young, setYoung] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+    const age = ageOn(birthday)
+    if (Number.isNaN(age) || age > 120) return setError('Enter your birthday.')
+    if (age < MIN_AGE) return setYoung(true)
+    if (!agreed) return setError('Please agree to continue.')
+    setBusy(true)
+    try {
+      await acceptTerms()
+      await onDone()
+    } catch {
+      setError('Could not save. Try again.')
+      setBusy(false)
+    }
+  }
+
+  async function deleteAccount() {
+    setBusy(true)
+    try {
+      await deleteMyAccount(userId)
+    } catch {
+      setError('Could not delete the account. Email us and we will do it.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="auth-wrap">
+      <form className="auth-card form" onSubmit={submit}>
+        <h1 className="brand">RankR</h1>
+        {young ? (
+          <TooYoung>
+            <p className="muted">Your account and everything in it will be deleted.</p>
+            <button type="button" className="btn danger block" onClick={deleteAccount} disabled={busy}>
+              {busy ? 'Deleting...' : 'Delete my account'}
+            </button>
+          </TooYoung>
+        ) : (
+          <>
+            <h2>A quick update</h2>
+            <p className="muted">
+              RankR now has Terms of Use and a Privacy Policy, and is for people {MIN_AGE} and older. Please confirm to keep going. Your lists
+              and friends are all still here.
+            </p>
+            <AgeAndTerms birthday={birthday} setBirthday={setBirthday} agreed={agreed} setAgreed={setAgreed} />
+            {error && <p className="error">{error}</p>}
+            <button className="btn primary block" disabled={busy}>
+              {busy ? 'Saving...' : 'Continue'}
+            </button>
+          </>
+        )}
+        {error && young && <p className="error">{error}</p>}
+        <div className="auth-links">
+          <button type="button" className="text-btn muted" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+        <LegalLinks />
+      </form>
+    </div>
+  )
+}
 
 export function SetupNeeded() {
   return (
@@ -61,6 +186,9 @@ export default function AuthPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [birthday, setBirthday] = useState('')
+  const [agreed, setAgreed] = useState(false)
+  const [young, setYoung] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
@@ -116,14 +244,26 @@ export default function AuthPage() {
         const uname = username.trim().toLowerCase()
         if (!USERNAME_RE.test(uname)) throw new Error('Username must be 3-20 characters: letters, numbers or underscores.')
         if (password.length < 6) throw new Error('Password needs at least 6 characters.')
+        const age = ageOn(birthday)
+        if (Number.isNaN(age) || age > 120) throw new Error('Enter your birthday.')
+        if (age < MIN_AGE) {
+          setYoung(true)
+          return
+        }
+        if (!agreed) throw new Error('Please agree to the Terms of Use and Privacy Policy.')
+        const allowed = await isClean(uname.replace(/_/g, ' ')).catch(() => true) // the database checks again
+        if (!allowed) throw new Error('That username isn’t allowed. Please pick a different one.')
         const free = await usernameAvailable(uname)
         if (!free) throw new Error('That username is taken. Try another one.')
         const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { username: uname, display_name: uname } },
+          options: { data: { username: uname, display_name: uname, terms_accepted: true } },
         })
-        if (err) throw err
+        if (err) {
+          if (/database error/i.test(err.message)) throw new Error('That username isn’t allowed. Please pick a different one.')
+          throw err
+        }
         if (!data.session) {
           setMode('verify')
           setInfo(`We sent a code to ${email.trim()}. Enter it to finish creating your account.`)
@@ -139,6 +279,18 @@ export default function AuthPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (young) {
+    return (
+      <div className="auth-wrap">
+        <div className="auth-card form">
+          <h1 className="brand">RankR</h1>
+          <TooYoung />
+          <LegalLinks />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -207,6 +359,8 @@ export default function AuthPage() {
           </label>
         )}
 
+        {mode === 'signup' && <AgeAndTerms birthday={birthday} setBirthday={setBirthday} agreed={agreed} setAgreed={setAgreed} />}
+
         {error && <p className="error">{error}</p>}
         {info && <p className="info">{info}</p>}
 
@@ -246,6 +400,7 @@ export default function AuthPage() {
             </button>
           )}
         </div>
+        <LegalLinks />
       </form>
     </div>
   )

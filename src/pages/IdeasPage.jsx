@@ -2,9 +2,10 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { createList, getListIdeas, getListsByOwner, localDay } from '../api.js'
+import { createList, getHiddenIdeas, getListIdeas, getListsByOwner, hideIdea, localDay } from '../api.js'
 import { TEMPLATES, randomColor } from '../templates.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import { ActionSheet, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const IDEA_COUNT = 10 // keep in step with p_limit in getListIdeas (api.js)
 
@@ -55,14 +56,16 @@ export default function IdeasPage() {
   const navigate = useNavigate()
   const [ideas, setIdeas] = useState(null)
   const [making, setMaking] = useState(null) // title being created
+  const [menuFor, setMenuFor] = useState(null) // idea whose "..." is open
+  const [reporting, setReporting] = useState(null)
   const loadedDay = useRef('')
 
   const load = useCallback(async () => {
     try {
-      const [rows, mine] = await Promise.all([getListIdeas(), getListsByOwner(user.id)])
+      const [rows, mine, hidden] = await Promise.all([getListIdeas(), getListsByOwner(user.id), getHiddenIdeas().catch(() => [])])
       loadedDay.current = localDay()
-      // fill a quiet day with starter ideas you don't have yet
-      const taken = new Set([...mine.map((l) => ideaKey(l.title)), ...rows.map((r) => ideaKey(r.title))])
+      // fill a quiet day with starter ideas you don't have yet (and haven't hidden)
+      const taken = new Set([...mine.map((l) => ideaKey(l.title)), ...rows.map((r) => ideaKey(r.title)), ...hidden])
       const starters = TEMPLATES.filter((t) => !taken.has(ideaKey(t)))
         .slice(0, Math.max(0, IDEA_COUNT - rows.length))
         .map((t) => ({ title: t, friends: [], others: 0, starter: true }))
@@ -85,6 +88,18 @@ export default function IdeasPage() {
     document.addEventListener('visibilitychange', onShow)
     return () => document.removeEventListener('visibilitychange', onShow)
   }, [load])
+
+  const dropIdea = (title) => setIdeas((cur) => cur.filter((i) => i.title !== title))
+
+  async function hide(title) {
+    dropIdea(title)
+    try {
+      await hideIdea(user.id, ideaKey(title))
+      toast('Hidden. You won’t see this idea again.')
+    } catch {
+      toast('Could not hide it')
+    }
+  }
 
   // Make an empty list with this title; you add your own items.
   async function makeIt(title) {
@@ -133,10 +148,33 @@ export default function IdeasPage() {
               <button className="btn small primary" disabled={Boolean(making)} onClick={() => makeIt(idea.title)}>
                 {making === idea.title ? 'Making...' : 'Make it'}
               </button>
+              <MoreButton small label={`More options for ${idea.title}`} onClick={() => setMenuFor(idea)} />
             </div>
           ))}
         </section>
       )}
+
+      <ActionSheet
+        open={Boolean(menuFor)}
+        onClose={() => setMenuFor(null)}
+        title={menuFor?.title}
+        actions={
+          menuFor
+            ? [
+                { label: 'Hide this idea', onClick: () => hide(menuFor.title) },
+                !menuFor.starter && {
+                  label: 'Report this idea',
+                  onClick: () => setReporting({ type: 'idea', title: menuFor.title, name: 'this idea' }),
+                },
+              ]
+            : []
+        }
+      />
+      <ReportSheet
+        target={reporting}
+        onClose={() => setReporting(null)}
+        onDone={() => dropIdea(reporting.title)}
+      />
     </>
   )
 }

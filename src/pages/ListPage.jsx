@@ -17,6 +17,7 @@ import FavoriteButton, { Star } from '../components/FavoriteButton.jsx'
 import ReactionBar from '../components/ReactionBar.jsx'
 import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
+import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
 
@@ -161,6 +162,9 @@ export default function ListPage() {
   const [items, setItems] = useState([])
   const [editingId, setEditingId] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [reporting, setReporting] = useState(null)
+  const [blocking, setBlocking] = useState(null)
   const [compareOpen, setCompareOpen] = useState(false)
   const [multiOpen, setMultiOpen] = useState(false)
   const [myLists, setMyLists] = useState(null)
@@ -660,9 +664,27 @@ export default function ListPage() {
                 </svg>
               </button>
             </>
-          ) : null
+          ) : (
+            <MoreButton onClick={() => setMenuOpen(true)} />
+          )
         }
       />
+
+      {!isOwner && (
+        <>
+          <ActionSheet
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            title={list.title}
+            actions={[
+              { label: 'Report list', onClick: () => setReporting({ type: 'list', id: list.id, name: 'this list' }) },
+              list.owner && { label: `Block @${list.owner.username}`, danger: true, onClick: () => setBlocking(list.owner) },
+            ]}
+          />
+          <ReportSheet target={reporting} onClose={() => setReporting(null)} />
+          <BlockModal profile={blocking} onClose={() => setBlocking(null)} onBlocked={() => navigate('/friends', { replace: true })} />
+        </>
+      )}
 
       {isOwner && (
         <div className="like-row">

@@ -129,7 +129,7 @@ export default function FriendsPage() {
       if (okMessage) toast(okMessage)
       await load()
     } catch (err) {
-      toast(err?.code === '23505' ? 'Already requested or friends' : failMessage)
+      toast(err?.code === '23505' ? 'Already requested or friends' : err?.code === '42501' ? 'You can’t send a request to this person' : failMessage)
     }
   }
 

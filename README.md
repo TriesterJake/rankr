@@ -76,7 +76,7 @@ a small Edge Function for push), hosted on Vercel.
    already has a table with that name, don't run the schema there.)
 2. Open **SQL Editor -> New query**, paste all of `supabase/schema.sql`, and click **Run**.
    This creates the tables, the friend-only visibility rules, the notification triggers, and the security
-   policies. `schema.sql` already includes every update (`update-2.sql` to `update-15.sql`), so a new project
+   policies. `schema.sql` already includes every update (`update-2.sql` to `update-17.sql`), so a new project
    only needs this one file.
 3. Go to **Project Settings -> API** (or the **Connect** button) and copy the **Project URL** and the
    **anon / publishable key**.
@@ -155,6 +155,8 @@ so the home-screen install above is the easiest way to start.
 ```
 supabase/schema.sql          everything for a fresh database (tables, security rules, triggers, functions)
 supabase/update-N.sql        the same changes as separate steps, for upgrading an existing database
+supabase/moderation.md       how to review reports, remove content, ban people and edit the word filter
+APP-STORE-SETUP.md           domain, support email and App Store Connect steps
 supabase/push-trigger.sql    tells the push function when a notification is created (fill in your keys)
 supabase/functions/send-push the Edge Function that sends phone notifications
 src/api.js                   all Supabase calls in one place (with a small read cache)
