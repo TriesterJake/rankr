@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import ScrollManager from './ScrollManager.jsx'
 import { useNotifications } from '../NotificationsContext.jsx'
 import { clearNewList, pendingNewList } from '../newList.js'
+import { ShakeToUndo } from '../undo.jsx'
 
 // After you make a list and fill it in, leaving it takes you to "Rank lists" with the new list highlighted.
 function useRankNewListOnLeave() {
@@ -32,6 +33,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <ScrollManager />
+      <ShakeToUndo />
       <main className="page">
         <Outlet />
       </main>

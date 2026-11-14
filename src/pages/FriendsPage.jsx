@@ -5,6 +5,7 @@ import { useToast } from '../toast.jsx'
 import { acceptFriendRequest, getFriendRanks, getFriendSuggestions, getFriendships, removeFriendship, saveFriendRanks, searchProfiles, sendFriendRequest } from '../api.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
 import FriendReorder from '../components/FriendReorder.jsx'
+import { useShakeUndo } from '../undo.jsx'
 
 function PersonRow({ profile, to, action, rank, detail }) {
   const inner = (
@@ -44,6 +45,8 @@ export default function FriendsPage() {
   const [suggestions, setSuggestions] = useState([])
   const [order, setOrder] = useState([]) // friend profiles in your order while ranking
   const saveQueue = useRef(Promise.resolve())
+  const history = useRef([]) // earlier friend orders while ranking
+  const [undoCount, setUndoCount] = useState(0)
 
   const load = useCallback(async () => {
     try {
@@ -104,12 +107,26 @@ export default function FriendsPage() {
   }, [friends.length, friendships, ranks])
 
   function startRanking() {
+    history.current = []
+    setUndoCount(0)
     setQuery('')
     setOrder(sortedFriends.map(otherOf))
     setRanking(true)
   }
 
-  function changeOrder(next) {
+  useShakeUndo(ranking && undoCount > 0 ? { label: 'Undo Move', run: undoRanking } : null)
+
+  function undoRanking() {
+    const prev = history.current.pop()
+    setUndoCount(history.current.length)
+    if (prev) changeOrder(prev, false)
+  }
+
+  function changeOrder(next, remember = true) {
+    if (remember) {
+      history.current.push(order)
+      setUndoCount(history.current.length)
+    }
     setOrder(next)
     setRanks(Object.fromEntries(next.map((p, i) => [p.id, i])))
     const ids = next.map((p) => p.id)
@@ -219,9 +236,16 @@ export default function FriendsPage() {
             <h2 className="section-title">Your friends{friends.length > 0 ? ` (${friends.length})` : ''}</h2>
             {friends.length > 1 &&
               (ranking ? (
-                <button className="btn small primary" onClick={() => setRanking(false)}>
-                  Done
-                </button>
+                <span className="btn-row">
+                  {undoCount > 0 && (
+                    <button className="btn small" onClick={undoRanking}>
+                      Undo
+                    </button>
+                  )}
+                  <button className="btn small primary" onClick={() => setRanking(false)}>
+                    Done
+                  </button>
+                </span>
               ) : (
                 <button className="btn small" onClick={startRanking}>
                   Rank friends

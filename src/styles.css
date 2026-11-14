@@ -2206,3 +2206,32 @@ button.rank-pick {
   width: 84px;
   flex: none;
 }
+
+/* ---------- Undo in pop-up messages ---------- */
+
+.toast.has-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 6px 6px 16px;
+  width: max-content;
+}
+.toast.has-action > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toast-action {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+
+.undo-btn {
+  margin-right: 2px;
+}

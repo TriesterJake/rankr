@@ -18,6 +18,7 @@ import ReactionBar from '../components/ReactionBar.jsx'
 import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 import { markNewList } from '../newList.js'
+import { useShakeUndo } from '../undo.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -286,6 +287,70 @@ export default function ListPage() {
 
   // ---------- editing actions (owner only) ----------
 
+  // Undo: every move and delete is remembered (newest last) until you leave the list.
+  const undoStack = useRef([]) // { kind: 'move', before: [...items] } | { kind: 'delete', item, index }
+  const [undoCount, setUndoCount] = useState(0)
+  function remember(entry) {
+    undoStack.current.push(entry)
+    setUndoCount(undoStack.current.length)
+  }
+  function undoLast() {
+    const entry = undoStack.current.pop()
+    setUndoCount(undoStack.current.length)
+    if (!entry) return
+    const now = itemsRef.current
+    if (entry.kind === 'move') {
+      // the old order, keeping anything added since then at the end
+      const restored = [
+        ...entry.before.map((b) => now.find((i) => i.id === b.id)).filter(Boolean),
+        ...now.filter((i) => !entry.before.some((b) => b.id === i.id)),
+      ]
+      persistOrder(restored)
+    } else {
+      const p = pendingDeletes.current.get(entry.item.id)
+      if (!p) return // already deleted for good
+      pendingDeletes.current.delete(entry.item.id)
+      const rest = now.filter((i) => i.id !== entry.item.id)
+      const at = Math.min(entry.index, rest.length)
+      persistOrder([...rest.slice(0, at), entry.item, ...rest.slice(at)])
+    }
+  }
+  const lastUndo = undoStack.current[undoStack.current.length - 1]
+  useShakeUndo(undoCount > 0 && lastUndo ? { label: lastUndo.kind === 'move' ? 'Undo Move' : 'Undo Delete', run: undoLast } : null)
+
+  // A deleted item is only removed for real when you leave the list (or the app goes to the background),
+  // so Undo can bring it back exactly as it was, photo and reactions too.
+  const pendingDeletes = useRef(new Map()) // itemId -> { item }
+  function finishDelete(itemId) {
+    const p = pendingDeletes.current.get(itemId)
+    if (!p) return
+    pendingDeletes.current.delete(itemId)
+    enqueue(async () => {
+      try {
+        await deleteItem(itemId)
+        if (p.item.image_path) removeImages([p.item.image_path])
+        await reorderItems(id, itemsRef.current.map((i) => i.id))
+      } catch {
+        toast('Could not delete that item')
+        load()
+      }
+    })
+  }
+  const finishDeleteRef = useRef(finishDelete)
+  finishDeleteRef.current = finishDelete
+  // leaving the page or closing the app: do the waiting deletes now
+  useEffect(() => {
+    const flush = () => [...pendingDeletes.current.keys()].forEach((k) => finishDeleteRef.current(k))
+    const onHide = () => document.visibilityState === 'hidden' && flush()
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHide)
+      flush()
+    }
+  }, [])
+
   function persistOrder(next) {
     const ids = next.map((i) => i.id)
     commit(next)
@@ -305,6 +370,7 @@ export default function ListPage() {
     const from = current.findIndex((i) => i.id === active.id)
     const to = current.findIndex((i) => i.id === over.id)
     if (from < 0 || to < 0) return
+    remember({ kind: 'move', before: current })
     persistOrder(arrayMove(current, from, to))
   }
 
@@ -331,25 +397,20 @@ export default function ListPage() {
     const from = next.findIndex((i) => i.id === itemId)
     const wanted = Number.isFinite(targetRank) ? targetRank : from + 1
     const to = Math.min(Math.max(wanted - 1, 0), next.length - 1)
-    if (to !== from) persistOrder(arrayMove(next, from, to))
+    if (to !== from) {
+      remember({ kind: 'move', before: next })
+      persistOrder(arrayMove(next, from, to))
+    }
   }
 
   function removeItem(itemId) {
     setEditingId(null)
-    const gone = itemsRef.current.find((i) => i.id === itemId)
-    const remaining = itemsRef.current.filter((i) => i.id !== itemId)
-    commit(remaining)
-    const ids = remaining.map((i) => i.id)
-    enqueue(async () => {
-      try {
-        await deleteItem(itemId)
-        if (gone?.image_path) removeImages([gone.image_path])
-        await reorderItems(id, ids)
-      } catch {
-        toast('Could not delete that item')
-        load()
-      }
-    })
+    const index = itemsRef.current.findIndex((i) => i.id === itemId)
+    if (index < 0) return
+    const gone = itemsRef.current[index]
+    commit(itemsRef.current.filter((i) => i.id !== itemId))
+    pendingDeletes.current.set(itemId, { item: gone })
+    remember({ kind: 'delete', item: gone, index })
   }
 
   async function setPhoto(itemId, file) {
@@ -653,6 +714,11 @@ export default function ListPage() {
         right={
           isOwner ? (
             <>
+              {undoCount > 0 && (
+                <button className="btn small undo-btn" onClick={undoLast}>
+                  Undo
+                </button>
+              )}
               <button className="icon-btn" onClick={copyAsText} aria-label="Copy list as text">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="9" y="9" width="11" height="11" rx="2" />

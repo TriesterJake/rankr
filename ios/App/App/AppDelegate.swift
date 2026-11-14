@@ -47,3 +47,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 }
+
+// The app's main screen. Same as Capacitor's, plus shake to undo: a shake tells the page,
+// which shows the classic "Undo Move? Cancel / Undo" box when there is something to undo (src/undo.jsx).
+class MainViewController: CAPBridgeViewController {
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+    }
+
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        if motion == .motionShake {
+            bridge?.webView?.evaluateJavaScript("window.dispatchEvent(new Event('rankr:shake'))", completionHandler: nil)
+        } else {
+            super.motionEnded(motion, with: event)
+        }
+    }
+}

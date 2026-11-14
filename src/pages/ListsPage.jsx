@@ -8,6 +8,7 @@ import ListCard from '../components/ListCard.jsx'
 import ListForm from '../components/ListForm.jsx'
 import ListReorder from '../components/ListReorder.jsx'
 import { markNewList } from '../newList.js'
+import { useShakeUndo } from '../undo.jsx'
 
 export default function ListsPage() {
   const { user } = useAuth()
@@ -21,6 +22,8 @@ export default function ListsPage() {
   const [moveTo, setMoveTo] = useState('')
   const [params, setParams] = useSearchParams()
   const saveQueue = useRef(Promise.resolve())
+  const history = useRef([]) // earlier orders while ranking, newest last
+  const [undoCount, setUndoCount] = useState(0)
 
   const load = useCallback(async () => {
     try {
@@ -61,9 +64,19 @@ export default function ListsPage() {
     setTimeout(() => document.getElementById(`reorder-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50)
   }
 
+  useShakeUndo(reordering && undoCount > 0 ? { label: 'Undo Move', run: undo } : null)
+
   function finishReordering() {
     setReordering(false)
     setNewId(null)
+    history.current = []
+    setUndoCount(0)
+  }
+
+  function undo() {
+    const prev = history.current.pop()
+    setUndoCount(history.current.length)
+    if (prev) handleReorder(prev, false)
   }
 
   async function handleCreate(values) {
@@ -79,7 +92,11 @@ export default function ListsPage() {
     }
   }
 
-  function handleReorder(next) {
+  function handleReorder(next, remember = true) {
+    if (remember && lists) {
+      history.current.push(lists)
+      setUndoCount(history.current.length)
+    }
     setLists(next)
     const ids = next.map((l) => l.id)
     // save one change at a time so quick drags can't overwrite each other
@@ -122,6 +139,11 @@ export default function ListsPage() {
               {reordering ? (
                 <>
                   <p className="muted small toolbar-hint">Drag the handles, or tap a number to send a list to a rank.</p>
+                  {undoCount > 0 && (
+                    <button className="btn small" onClick={undo}>
+                      Undo
+                    </button>
+                  )}
                   <button className="btn small primary" onClick={finishReordering}>
                     Done
                   </button>
