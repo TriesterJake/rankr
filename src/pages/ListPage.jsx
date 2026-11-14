@@ -19,7 +19,7 @@ import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 import { markNewList } from '../newList.js'
 import { useShakeUndo } from '../undo.jsx'
-import { spoilerKey, useSpoilers } from '../spoilers.jsx'
+import { SpoilerMask, spoilerKey, useSpoilers } from '../spoilers.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -935,12 +935,9 @@ export default function ListPage() {
                       </button>
                     )}
                     {covered ? (
-                      <button className="row-text spoiler-row" onClick={() => revealItem(item.id)} aria-label={`Spoiler for ${item.spoiler}. Tap to show`}>
-                        <span className="spoiler-mask">
-                          <span className="spoiler-label">Spoiler: {item.spoiler}</span>
-                        </span>
-                        <span className="row-note">Tap to show</span>
-                      </button>
+                      <div className="row-text static spoiler-row">
+                        <SpoilerMask topic={item.spoiler} onShowOne={() => revealItem(item.id)} />
+                      </div>
                     ) : (
                       <div className="row-text static">
                         <span className="row-title">

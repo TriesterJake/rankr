@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from './AuthContext.jsx'
 import { getSeenSpoilers, setSpoilerSeen } from './api.js'
+import { Modal } from './components/ui.jsx'
 
 // Same rule as idea_key() in the database: "Attack on Titan!" = "attack on titan".
 export const spoilerKey = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
@@ -61,29 +63,81 @@ export function useHiddenTopic() {
   }
 }
 
-// Shows a blurred "Spoiler" in place of text until you tap it.
+// "Spoiler for Naruto": I've seen it (shows all of them, everywhere) / Show just this one / Cancel.
+// Drawn over the page, so it works even inside a tappable card.
+export function SpoilerAsk({ topic, onShowOne, onClose }) {
+  const { setSeen } = useSpoilers()
+  if (!topic) return null
+  return createPortal(
+    <div onClick={(e) => e.stopPropagation()}>
+      <Modal
+        open
+        title={`Spoiler for ${topic}`}
+        onClose={onClose}
+        actions={
+          <div className="spoiler-ask-actions">
+            <button
+              className="btn primary block"
+              onClick={() => {
+                setSeen(topic, true)
+                onClose()
+              }}
+            >
+              I&rsquo;ve seen {topic}
+            </button>
+            <button
+              className="btn block"
+              onClick={() => {
+                onShowOne()
+                onClose()
+              }}
+            >
+              Show just this one
+            </button>
+            <button className="btn block" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        }
+      >
+        <p className="muted small">
+          &ldquo;I&rsquo;ve seen it&rdquo; shows every {topic} spoiler on your friends&rsquo; lists. You can change it later on the Me tab.
+        </p>
+      </Modal>
+    </div>,
+    document.body,
+  )
+}
+
+// A striped "Spoiler: Naruto" block in place of the text. Tapping it asks what to do.
+export function SpoilerMask({ topic, onShowOne, note }) {
+  const [asking, setAsking] = useState(false)
+  const open = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setAsking(true)
+  }
+  return (
+    <>
+      <span
+        className="spoiler-mask"
+        role="button"
+        tabIndex={0}
+        aria-label={`Spoiler for ${topic}. Tap for options`}
+        onClick={open}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && open(e)}
+      >
+        <span className="spoiler-label">Spoiler: {topic}</span>
+      </span>
+      {note}
+      {asking && <SpoilerAsk topic={topic} onShowOne={onShowOne} onClose={() => setAsking(false)} />}
+    </>
+  )
+}
+
+// Text that stays covered while it's a spoiler for you.
 export function SpoilerText({ topic, children }) {
   const [shown, setShown] = useState(false)
   if (!topic || shown) return children
-  return (
-    <span
-      className="spoiler-mask"
-      role="button"
-      tabIndex={0}
-      title={`Spoiler for ${topic}. Tap to show`}
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setShown(true)
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          setShown(true)
-        }
-      }}
-    >
-      <span className="spoiler-label">Spoiler: {topic}</span>
-    </span>
-  )
+  return <SpoilerMask topic={topic} onShowOne={() => setShown(true)} />
 }

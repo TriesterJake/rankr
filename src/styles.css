@@ -2309,3 +2309,9 @@ button.rank-pick {
   width: auto;
   flex: 1;
 }
+.spoiler-ask-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
