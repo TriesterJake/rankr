@@ -1,6 +1,24 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import ScrollManager from './ScrollManager.jsx'
 import { useNotifications } from '../NotificationsContext.jsx'
+import { clearNewList, pendingNewList } from '../newList.js'
+
+// After you make a list and fill it in, leaving it takes you to "Rank lists" with the new list highlighted.
+function useRankNewListOnLeave() {
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const prev = useRef(pathname)
+  useEffect(() => {
+    const from = prev.current
+    prev.current = pathname
+    const id = pendingNewList()
+    if (!id || from !== `/list/${id}` || pathname === from) return
+    if (pathname.startsWith('/compare')) return // comparing the new list: wait until they leave for real
+    clearNewList()
+    navigate(`/?rank=${id}`, { replace: true })
+  }, [pathname, navigate])
+}
 
 const Icon = ({ children }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -10,6 +28,7 @@ const Icon = ({ children }) => (
 
 export default function Layout() {
   const { unread } = useNotifications()
+  useRankNewListOnLeave()
   return (
     <div className="app-shell">
       <ScrollManager />

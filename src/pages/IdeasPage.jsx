@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { createList, getHiddenIdeas, getListIdeas, getListsByOwner, hideIdea, localDay } from '../api.js'
 import { TEMPLATES, randomColor } from '../templates.js'
+import { markNewList } from '../newList.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
 import { ActionSheet, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
@@ -109,6 +110,7 @@ export default function IdeasPage() {
       const mine = await getListsByOwner(user.id)
       const created = await createList({ ownerId: user.id, title, icon: '', color: randomColor(), visibility: 'friends', position: mine.length })
       toast('Added to your lists')
+      markNewList(created.id)
       navigate(`/list/${created.id}`)
     } catch {
       toast('Could not make the list')

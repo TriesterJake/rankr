@@ -19,6 +19,15 @@ function ageOn(birthday) {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+// A friendly message when the birthday can't be right, otherwise ''.
+function birthdayProblem(birthday) {
+  const age = ageOn(birthday || '')
+  if (Number.isNaN(age)) return 'Enter your birthday.'
+  if (age < 0) return 'That birthday is in the future. Double-check the year.'
+  if (age > 120) return 'Over 120 years old? Impressive, but probably not. Double-check the year.'
+  return ''
+}
+
 // Birthday + "I agree" checkbox. Used at sign-up, and once for accounts made before the terms existed.
 function AgeAndTerms({ birthday, setBirthday, agreed, setAgreed }) {
   const [reading, setReading] = useState(null)
@@ -69,9 +78,9 @@ export function TermsGate({ userId, onDone, onSignOut }) {
   async function submit(e) {
     e.preventDefault()
     setError('')
-    const age = ageOn(birthday)
-    if (Number.isNaN(age) || age > 120) return setError('Enter your birthday.')
-    if (age < MIN_AGE) return setYoung(true)
+    const problem = birthdayProblem(birthday)
+    if (problem) return setError(problem)
+    if (ageOn(birthday) < MIN_AGE) return setYoung(true)
     if (!agreed) return setError('Please agree to continue.')
     setBusy(true)
     try {
@@ -244,9 +253,9 @@ export default function AuthPage() {
         const uname = username.trim().toLowerCase()
         if (!USERNAME_RE.test(uname)) throw new Error('Username must be 3-20 characters: letters, numbers or underscores.')
         if (password.length < 6) throw new Error('Password needs at least 6 characters.')
-        const age = ageOn(birthday)
-        if (Number.isNaN(age) || age > 120) throw new Error('Enter your birthday.')
-        if (age < MIN_AGE) {
+        const problem = birthdayProblem(birthday)
+        if (problem) throw new Error(problem)
+        if (ageOn(birthday) < MIN_AGE) {
           setYoung(true)
           return
         }

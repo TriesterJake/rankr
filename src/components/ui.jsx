@@ -50,7 +50,8 @@ export function Avatar({ profile, size = 40, zoom = false }) {
   )
 }
 
-export function TopBar({ title, subtitle, back, right }) {
+// bottom: optional row (search, buttons) that stays pinned with the bar while you scroll.
+export function TopBar({ title, subtitle, back, right, bottom }) {
   const navigate = useNavigate()
   const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate('/'))
   return (
@@ -69,6 +70,7 @@ export function TopBar({ title, subtitle, back, right }) {
         {subtitle && <p>{subtitle}</p>}
       </div>
       <div className="topbar-side topbar-right">{right}</div>
+      {bottom && <div className="topbar-bottom">{bottom}</div>}
     </header>
   )
 }

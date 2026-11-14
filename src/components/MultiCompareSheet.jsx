@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { getFriendsLists } from '../api.js'
 import { sameTopic } from '../compare.js'
-import { Avatar, Sheet, Spinner } from './ui.jsx'
+import { Avatar, SearchBox, Sheet, Spinner } from './ui.jsx'
 
 const MAX = 5
 
@@ -13,11 +13,13 @@ export default function MultiCompareSheet({ open, list, onClose }) {
   const navigate = useNavigate()
   const [lists, setLists] = useState(null)
   const [picked, setPicked] = useState([])
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     if (!open) return undefined
     let cancelled = false
     setLists(null)
+    setQuery('')
     getFriendsLists(user.id)
       .then((rows) => {
         if (cancelled) return
@@ -31,6 +33,14 @@ export default function MultiCompareSheet({ open, list, onClose }) {
       cancelled = true
     }
   }, [open, list.title, user.id])
+
+  const q = query.trim().toLowerCase()
+  const shown =
+    lists && q
+      ? lists.filter((l) =>
+          [l.title, l.owner?.username, l.owner?.display_name].some((t) => (t || '').toLowerCase().includes(q)),
+        )
+      : lists
 
   const toggle = (id) =>
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX ? cur : [...cur, id]))
@@ -52,9 +62,11 @@ export default function MultiCompareSheet({ open, list, onClose }) {
             >
               {picked.length === 0 ? 'Pick at least one list' : `Compare ${picked.length + 1} lists`}
             </button>
+            <SearchBox value={query} onChange={setQuery} placeholder="Search lists or friends" />
           </div>
+          {shown.length === 0 && <p className="muted small">No lists match &ldquo;{query.trim()}&rdquo;.</p>}
           <div className="pick-list">
-            {lists.map((l) => {
+            {shown.map((l) => {
               const on = picked.includes(l.id)
               return (
                 <button key={l.id} type="button" className={on ? 'pick-row picked' : 'pick-row'} onClick={() => toggle(l.id)} aria-pressed={on}>

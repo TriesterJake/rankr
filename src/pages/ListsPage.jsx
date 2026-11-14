@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { createList, getListsByOwner, reorderLists } from '../api.js'
@@ -7,6 +7,7 @@ import { TopBar, Sheet, Spinner, Empty, SearchBox } from '../components/ui.jsx'
 import ListCard from '../components/ListCard.jsx'
 import ListForm from '../components/ListForm.jsx'
 import ListReorder from '../components/ListReorder.jsx'
+import { markNewList } from '../newList.js'
 
 export default function ListsPage() {
   const { user } = useAuth()
@@ -16,6 +17,9 @@ export default function ListsPage() {
   const [creating, setCreating] = useState(false)
   const [query, setQuery] = useState('')
   const [reordering, setReordering] = useState(false)
+  const [newId, setNewId] = useState(null) // just-made list waiting to be ranked
+  const [moveTo, setMoveTo] = useState('')
+  const [params, setParams] = useSearchParams()
   const saveQueue = useRef(Promise.resolve())
 
   const load = useCallback(async () => {
@@ -31,10 +35,42 @@ export default function ListsPage() {
     load()
   }, [load])
 
+  // Arriving from a list you just made (/?rank=ID): open "Rank lists" with it highlighted.
+  const rankParam = params.get('rank')
+  useEffect(() => {
+    if (!rankParam || !lists) return
+    setParams({}, { replace: true })
+    const made = lists.find((l) => l.id === rankParam)
+    if (!made || lists.length < 2 || (made.list_items || []).length === 0) return // empty or only list: nothing to rank
+    setQuery('')
+    setNewId(made.id)
+    setMoveTo('')
+    setReordering(true)
+    setTimeout(() => document.getElementById(`reorder-${made.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150)
+  }, [rankParam, lists, setParams])
+
+  // Send one list straight to a rank number (1 = top).
+  function moveListTo(id, rank) {
+    const from = lists.findIndex((l) => l.id === id)
+    const to = Math.min(Math.max(rank, 1), lists.length) - 1
+    if (from < 0 || from === to) return
+    const next = [...lists]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    handleReorder(next)
+    setTimeout(() => document.getElementById(`reorder-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50)
+  }
+
+  function finishReordering() {
+    setReordering(false)
+    setNewId(null)
+  }
+
   async function handleCreate(values) {
     try {
       const list = await createList({ ownerId: user.id, position: lists ? lists.length : 0, ...values })
       setCreating(false)
+      markNewList(list.id)
       navigate(`/list/${list.id}`)
       return true
     } catch {
@@ -79,6 +115,36 @@ export default function ListsPage() {
             New list
           </button>
         }
+        bottom={
+          lists &&
+          lists.length > 0 && (
+            <div className="toolbar">
+              {reordering ? (
+                <>
+                  <p className="muted small toolbar-hint">Drag the handles, or tap a number to send a list to a rank.</p>
+                  <button className="btn small primary" onClick={finishReordering}>
+                    Done
+                  </button>
+                </>
+              ) : (
+                <>
+                  <SearchBox value={query} onChange={setQuery} placeholder="Search lists and items" />
+                  {lists.length > 1 && (
+                    <button
+                      className="btn small"
+                      onClick={() => {
+                        setQuery('')
+                        setReordering(true)
+                      }}
+                    >
+                      Rank lists
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )
+        }
       />
 
       {lists === null && <Spinner />}
@@ -92,35 +158,42 @@ export default function ListsPage() {
         </Empty>
       )}
 
-      {lists && lists.length > 0 && (
-        <div className="toolbar">
-          {reordering ? (
-            <>
-              <p className="muted small toolbar-hint">Drag the handles to rank your lists.</p>
-              <button className="btn small primary" onClick={() => setReordering(false)}>
-                Done
-              </button>
-            </>
-          ) : (
-            <>
-              <SearchBox value={query} onChange={setQuery} placeholder="Search lists and items" />
-              {lists.length > 1 && (
-                <button
-                  className="btn small"
-                  onClick={() => {
-                    setQuery('')
-                    setReordering(true)
-                  }}
-                >
-                  Rank lists
-                </button>
-              )}
-            </>
-          )}
-        </div>
+      {reordering && newId && lists.some((l) => l.id === newId) && (
+        <form
+          className="card new-rank-card"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const n = parseInt(moveTo, 10)
+            if (n >= 1) moveListTo(newId, n)
+            setMoveTo('')
+          }}
+        >
+          <p className="small">
+            <span className="pill new-pill">New</span> <b>{lists.find((l) => l.id === newId).title}</b> is ready to rank. Drag it into place,
+            or send it straight to a rank.
+          </p>
+          <div className="new-rank-row">
+            <span className="muted small">Move to rank</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={lists.length}
+              value={moveTo}
+              onChange={(e) => setMoveTo(e.target.value)}
+              placeholder={`1-${lists.length}`}
+              aria-label="Rank number"
+            />
+            <button className="btn small primary" disabled={!moveTo}>
+              Move
+            </button>
+          </div>
+        </form>
       )}
 
-      {lists && lists.length > 0 && reordering && <ListReorder lists={lists} onChange={handleReorder} />}
+      {lists && lists.length > 0 && reordering && (
+        <ListReorder lists={lists} onChange={handleReorder} highlightId={newId} onMoveTo={moveListTo} />
+      )}
 
       {lists && lists.length > 0 && !reordering && visible && visible.length === 0 && (
         <Empty title="No matches">Nothing in your lists matches &ldquo;{query.trim()}&rdquo;.</Empty>

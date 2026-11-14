@@ -17,6 +17,7 @@ import FavoriteButton, { Star } from '../components/FavoriteButton.jsx'
 import ReactionBar from '../components/ReactionBar.jsx'
 import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
+import { markNewList } from '../newList.js'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -553,6 +554,7 @@ export default function ListPage() {
       }
       setCopyOpen(false)
       toast('Copied to your lists')
+      markNewList(created.id)
       navigate(`/list/${created.id}`)
     } catch {
       toast('Could not copy this list')
