@@ -70,11 +70,14 @@ export function compareMany(lists) {
     }),
   )
   const presence = lists.map((l, li) => l.items.map((_, i) => lists_present.get(find(key(li, i))).size))
+  // which lists (by index) each item is on, e.g. to tell whether it's on yours
+  const presentOn = lists.map((l, li) => l.items.map((_, i) => lists_present.get(find(key(li, i)))))
 
   const divisive = [...everyone].sort((x, y) => y.spread - x.spread)[0]
   return {
     n,
     presence,
+    presentOn,
     pairs: pairs.sort((x, y) => y.match - x.match),
     everyone,
     some,

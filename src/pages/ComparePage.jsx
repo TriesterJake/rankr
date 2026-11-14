@@ -6,6 +6,7 @@ import { getItems, getList } from '../api.js'
 import { compareLists, sameTopic as sameTopicTitles } from '../compare.js'
 import { loadVibes } from '../vibes.js'
 import { Empty, Spinner, TopBar } from '../components/ui.jsx'
+import { SpoilerText, useHiddenTopic } from '../spoilers.jsx'
 
 const nameOf = (list, meId) => (list.owner_id === meId ? 'You' : `@${list.owner?.username ?? 'friend'}`)
 
@@ -20,6 +21,7 @@ function gapLabel(gap, sameRank) {
 export default function ComparePage() {
   const { mine: mineId, theirs: theirsId } = useParams()
   const { user } = useAuth()
+  const hiddenTopic = useHiddenTopic()
   const toast = useToast()
   const [data, setData] = useState(undefined) // undefined loading, null failed
   const [tab, setTab] = useState('shared')
@@ -196,8 +198,8 @@ export default function ComparePage() {
       {tab === 'side' && (
         <div className="side-by-side">
           {[
-            { name: left, items: aItems, matched: result.matchedA },
-            { name: right, items: bItems, matched: result.matchedB },
+            { name: left, items: aItems, matched: result.matchedA, list: a },
+            { name: right, items: bItems, matched: result.matchedB, list: b },
           ].map((col) => (
             <div className="side-col" key={col.name}>
               <h3>{col.name}</h3>
@@ -207,7 +209,9 @@ export default function ComparePage() {
                   return (
                     <li key={item.id} className={kind === 'same' ? 'shared' : kind === 'similar' ? 'similar' : 'only'}>
                       <b>{i + 1}</b>
-                      <span>{item.title}</span>
+                      <span>
+                        <SpoilerText topic={kind ? '' : hiddenTopic(col.list, item)}>{item.title}</SpoilerText>
+                      </span>
                     </li>
                   )
                 })}

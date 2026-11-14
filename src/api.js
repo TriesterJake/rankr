@@ -31,7 +31,7 @@ export const getListsByOwner = async (ownerId, fresh = false) =>
   unwrap(
     await supabase
       .from('lists')
-      .select('*, list_items(id, title, position), list_likes(user_id), list_favorites(user_id)')
+      .select('*, list_items(id, title, position, spoiler), list_likes(user_id), list_favorites(user_id)')
       .eq('owner_id', ownerId)
       .order('position', { ascending: true, nullsFirst: false })
       .order('updated_at', { ascending: false }),
@@ -49,11 +49,11 @@ export const getList = async (id) =>
       .maybeSingle(),
   )
 
-export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position, show_in_ideas = true }) =>
+export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position, show_in_ideas = true, spoiler = '' }) =>
   unwrapW(
     await supabase
       .from('lists')
-      .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position, show_in_ideas })
+      .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position, show_in_ideas, ...(spoiler ? { spoiler } : {}) })
       .select()
       .single(),
   )
@@ -185,7 +185,7 @@ export const addItems = async (listId, titles, startPosition) => {
 
 // Copy items (title + note, in order) into a list, e.g. when copying a friend's list.
 export const copyItems = async (listId, items) => {
-  const rows = items.map((it, i) => ({ list_id: listId, title: it.title, note: it.note || '', position: i }))
+  const rows = items.map((it, i) => ({ list_id: listId, title: it.title, note: it.note || '', position: i, ...(it.spoiler ? { spoiler: it.spoiler } : {}) }))
   if (rows.length === 0) return []
   return unwrapW(await supabase.from('list_items').insert(rows).select())
 }
@@ -373,3 +373,14 @@ export const hideIdea = async (myId, key) =>
   unwrapW(await supabase.from('hidden_ideas').upsert({ user_id: myId, k: key }, { onConflict: 'user_id,k', ignoreDuplicates: true }))
 
 export const acceptTerms = async () => unwrapW(await supabase.rpc('accept_terms'))
+
+// ---------- Spoilers ----------
+
+// The things I've seen, so their spoilers aren't hidden for me: [{ k, label }], newest first.
+export const getSeenSpoilers = async () =>
+  unwrap(await supabase.from('spoilers_seen').select('k, label').order('created_at', { ascending: false }))
+
+export const setSpoilerSeen = async (myId, key, seen, label = '') =>
+  seen
+    ? unwrap(await supabase.from('spoilers_seen').upsert({ user_id: myId, k: key, label: label.slice(0, 80) }, { onConflict: 'user_id,k' }))
+    : unwrap(await supabase.from('spoilers_seen').delete().eq('user_id', myId).eq('k', key))

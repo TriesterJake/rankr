@@ -2235,3 +2235,77 @@ button.rank-pick {
 .undo-btn {
   margin-right: 2px;
 }
+
+/* ---------- Spoilers ---------- */
+
+.spoiler-mask {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 10px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 8px, color-mix(in srgb, var(--warn) 18%, var(--surface-2)) 8px 16px);
+  border: 1px dashed color-mix(in srgb, var(--warn) 55%, var(--border));
+  cursor: pointer;
+  vertical-align: middle;
+}
+.spoiler-label {
+  color: var(--warn);
+  font-weight: 750;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spoiler-row {
+  text-align: left;
+}
+.spoiler-pill {
+  margin-left: 8px;
+  vertical-align: 2px;
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+}
+.spoiler-note {
+  color: var(--warn);
+  font-weight: 650;
+  margin: 2px 0 8px;
+}
+.spoiler-cover {
+  text-align: center;
+  padding: 24px 18px;
+}
+.spoiler-cover-icon {
+  font-size: 34px;
+}
+.spoiler-cover h3 {
+  margin: 6px 0 4px;
+}
+.spoiler-cover-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.spoiler-topics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+
+/* likes, favorites and "Compare with friends" on one line */
+.owner-like-row {
+  flex-wrap: nowrap;
+}
+.owner-like-row .btn {
+  white-space: nowrap;
+}
+.spaced-top {
+  margin-top: 10px;
+}
+.small-section .new-rank-row input {
+  width: auto;
+  flex: 1;
+}

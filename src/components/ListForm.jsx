@@ -16,6 +16,8 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
   const [color, setColor] = useState(() => initial?.color ?? randomColor())
   const [visibility, setVisibility] = useState(initial?.visibility ?? 'friends')
   const [showInIdeas, setShowInIdeas] = useState(initial?.show_in_ideas ?? true)
+  const [hasSpoilers, setHasSpoilers] = useState(Boolean(initial?.spoiler))
+  const [spoiler, setSpoiler] = useState(initial?.spoiler ?? '')
   const [busy, setBusy] = useState(false)
   const isCustom = !COLORS.includes(color)
 
@@ -25,7 +27,11 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
     if (!clean || busy) return
     setBusy(true)
     try {
-      const ok = await onSubmit({ title: clean, icon: icon.trim().slice(0, 4), icon_path: iconPath, color, visibility, show_in_ideas: showInIdeas })
+      const spoilerText = hasSpoilers ? spoiler.trim().slice(0, 80) : ''
+      const values = { title: clean, icon: icon.trim().slice(0, 4), icon_path: iconPath, color, visibility, show_in_ideas: showInIdeas }
+      // only send the spoiler field when it's used or changed (works before update-18.sql too)
+      if (spoilerText || initial?.spoiler) values.spoiler = spoilerText
+      const ok = await onSubmit(values)
       if (ok !== false) {
         unsaved.current = null
         // the old picture is no longer used once the change is saved
@@ -185,6 +191,30 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
               onChange={(e) => setShowInIdeas(e.target.checked)}
             />
           </label>
+        </div>
+      )}
+
+      {visibility === 'friends' && (
+        <div className="field">
+          <label className="toggle-row">
+            <span>
+              <span className="label">Whole list has spoilers</span>
+              <span className="muted small" style={{ display: 'block' }}>
+                Friends see a warning before the items. To mark just some items, open an item and add a spoiler there.
+              </span>
+            </span>
+            <input type="checkbox" checked={hasSpoilers} onChange={(e) => setHasSpoilers(e.target.checked)} />
+          </label>
+          {hasSpoilers && (
+            <input
+              value={spoiler}
+              onChange={(e) => setSpoiler(e.target.value)}
+              placeholder="Spoilers for... e.g. Attack on Titan"
+              maxLength={80}
+              aria-label="Spoilers for"
+              required
+            />
+          )}
         </div>
       )}
 

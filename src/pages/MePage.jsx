@@ -8,6 +8,7 @@ import { isNative } from '../native.js'
 import { removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, TopBar } from '../components/ui.jsx'
 import { SUPPORT_EMAIL } from './LegalPage.jsx'
+import { useSpoilers } from '../spoilers.jsx'
 
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
 
@@ -25,6 +26,8 @@ export default function MePage() {
   const [emailBusy, setEmailBusy] = useState(false)
   const [emailError, setEmailError] = useState('')
   const [blocks, setBlocks] = useState(null) // loaded when "Blocked people" is opened
+  const { seenList, setSeen } = useSpoilers()
+  const [newSeen, setNewSeen] = useState('')
 
   // the profile can finish loading after this page first renders
   useEffect(() => {
@@ -273,6 +276,40 @@ export default function MePage() {
           </p>
         </div>
       )}
+
+      <details className="card small-section">
+        <summary>Spoilers I&rsquo;ve seen{seenList.length > 0 ? ` (${seenList.length})` : ''}</summary>
+        <p className="muted small spaced-top">
+          Spoilers for these show normally on friends&rsquo; lists. Remove one to have its spoilers covered again.
+        </p>
+        <form
+          className="new-rank-row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (newSeen.trim()) setSeen(newSeen.trim(), true)
+            setNewSeen('')
+          }}
+        >
+          <input value={newSeen} onChange={(e) => setNewSeen(e.target.value)} placeholder="Add something you've seen" maxLength={80} aria-label="Something you've seen" />
+          <button className="btn small primary" disabled={!newSeen.trim()}>
+            Add
+          </button>
+        </form>
+        {seenList.length === 0 ? (
+          <p className="muted small spaced-top">Nothing yet. Tick &ldquo;I&rsquo;ve seen it&rdquo; on a friend&rsquo;s list, or add one above.</p>
+        ) : (
+          <div className="pick-list blocked-list">
+            {seenList.map((s) => (
+              <div key={s.k} className="pick-row static">
+                <span className="pick-title">{s.label}</span>
+                <button className="btn small" onClick={() => setSeen(s.label, false)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </details>
 
       <details className="card small-section" onToggle={(e) => e.currentTarget.open && blocks === null && loadBlocks()}>
         <summary>Blocked people</summary>

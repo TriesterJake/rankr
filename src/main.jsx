@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { AuthProvider } from './AuthContext.jsx'
 import { NotificationsProvider } from './NotificationsContext.jsx'
+import { SpoilersProvider } from './spoilers.jsx'
 import './styles.css'
 
 createRoot(document.getElementById('root')).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <NotificationsProvider>
-          <App />
+          <SpoilersProvider>
+            <App />
+          </SpoilersProvider>
         </NotificationsProvider>
       </AuthProvider>
     </BrowserRouter>

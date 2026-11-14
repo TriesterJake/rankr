@@ -6,6 +6,7 @@ import { imageUrl } from '../images.js'
 import { Lightbox } from './ui.jsx'
 import LikeButton, { Heart } from './LikeButton.jsx'
 import FavoriteButton, { Star } from './FavoriteButton.jsx'
+import { SpoilerText, useHiddenTopic } from '../spoilers.jsx'
 
 // A list summary card: icon top-left, rank top-right, title, item count and the current top 3.
 // likeUserId: when set (a friend's list) the card shows Like and Favorite buttons.
@@ -17,6 +18,8 @@ export default function ListCard({ list, footer, rank, likeUserId, favorite }) {
   const count = list.list_items?.length ?? 0
   const top = topItems(list, 3)
   const isFavorite = Boolean(likeUserId) && favorites.some((f) => f.user_id === likeUserId)
+  const hiddenTopic = useHiddenTopic()
+  const listHidden = hiddenTopic(list, null)
   return (
     <div className="list-card" style={{ '--list-color': list.color, '--list-ink': inkOn(list.color) }}>
       <Link to={`/list/${list.id}`} className="list-card-link">
@@ -73,12 +76,15 @@ export default function ListCard({ list, footer, rank, likeUserId, favorite }) {
               </span>
             )}
           </p>
-          {top.length > 0 && (
+          {top.length > 0 && listHidden && <p className="small spoiler-note">⚠️ Spoilers for {listHidden}</p>}
+          {top.length > 0 && !listHidden && (
             <ol className="mini-top">
               {top.map((item, i) => (
                 <li key={item.id}>
                   <b>{i + 1}</b>
-                  <span>{item.title}</span>
+                  <span>
+                    <SpoilerText topic={hiddenTopic(list, item)}>{item.title}</SpoilerText>
+                  </span>
                 </li>
               ))}
             </ol>

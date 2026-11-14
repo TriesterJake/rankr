@@ -19,6 +19,7 @@ import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 import { markNewList } from '../newList.js'
 import { useShakeUndo } from '../undo.jsx'
+import { spoilerKey, useSpoilers } from '../spoilers.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const normalize = (arr) => arr.map((item, i) => ({ ...item, position: i }))
@@ -30,14 +31,18 @@ const parseLines = (text) =>
     .map((line) => line.replace(/^\s*(?:\d+\s*[.)\-:]|[-*\u2022])\s*/, '').trim())
     .filter(Boolean)
 
-function EditPanel({ item, rank, total, photoBusy, onPhoto, onRemovePhoto, onSave, onDelete, onCancel }) {
+function EditPanel({ item, rank, total, topics, photoBusy, onPhoto, onRemovePhoto, onSave, onDelete, onCancel }) {
   const [title, setTitle] = useState(item.title)
   const [note, setNote] = useState(item.note || '')
   const [moveTo, setMoveTo] = useState(String(rank))
+  const [spoiler, setSpoiler] = useState(item.spoiler || '')
 
   function submit(e) {
     e.preventDefault()
-    onSave(item.id, { title: title.trim() || item.title, note: note.trim() }, parseInt(moveTo, 10))
+    const patch = { title: title.trim() || item.title, note: note.trim() }
+    const sp = spoiler.trim().slice(0, 80)
+    if (sp !== (item.spoiler || '')) patch.spoiler = sp // only sent when it changes
+    onSave(item.id, patch, parseInt(moveTo, 10))
   }
 
   return (
@@ -76,6 +81,23 @@ function EditPanel({ item, rank, total, photoBusy, onPhoto, onRemovePhoto, onSav
         </div>
       </div>
       <label className="field">
+        <span className="label">Spoiler for (optional)</span>
+        <input
+          value={spoiler}
+          onChange={(e) => setSpoiler(e.target.value)}
+          placeholder="e.g. Avengers: Endgame"
+          maxLength={80}
+          autoComplete="off"
+          list={`spoiler-topics-${item.id}`}
+        />
+        <datalist id={`spoiler-topics-${item.id}`}>
+          {topics.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+        <span className="muted small">Friends who haven&rsquo;t seen it get this item covered until they tap it.</span>
+      </label>
+      <label className="field">
         <span className="label">Rank (1-{total})</span>
         <input
           type="number"
@@ -100,7 +122,7 @@ function EditPanel({ item, rank, total, photoBusy, onPhoto, onRemovePhoto, onSav
   )
 }
 
-function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onView }) {
+function SortableRow({ item, rank, total, topics, editing, flash, filtering, photoBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onView }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: filtering })
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
   return (
@@ -120,7 +142,10 @@ function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, 
           </button>
         )}
         <button className="row-text" onClick={onToggle}>
-          <span className="row-title">{item.title}</span>
+          <span className="row-title">
+            {item.title}
+            {item.spoiler && <span className="pill spoiler-pill">Spoiler: {item.spoiler}</span>}
+          </span>
           {item.note && <span className="row-note">{item.note}</span>}
         </button>
         {!filtering && (
@@ -142,6 +167,7 @@ function SortableRow({ item, rank, total, editing, flash, filtering, photoBusy, 
           item={item}
           rank={rank}
           total={total}
+          topics={topics}
           photoBusy={photoBusy}
           onPhoto={onPhoto}
           onRemovePhoto={onRemovePhoto}
@@ -255,6 +281,9 @@ export default function ListPage() {
   }, [load])
 
   const isOwner = Boolean(list && list.owner_id === user.id)
+  const { isHidden, isSeen, setSeen } = useSpoilers()
+  const [listRevealed, setListRevealed] = useState(false) // "show anyway" for this visit
+  const [revealedItems, setRevealedItems] = useState(() => new Set())
 
   // coming from a "reacted" notification: scroll to that item and flash it once
   useEffect(() => {
@@ -381,7 +410,7 @@ export default function ListPage() {
     setEditingId(null)
 
     let next = current
-    if (patch.title !== existing.title || patch.note !== (existing.note || '')) {
+    if (patch.title !== existing.title || patch.note !== (existing.note || '') || 'spoiler' in patch) {
       next = current.map((i) => (i.id === itemId ? { ...i, ...patch } : i))
       commit(next)
       enqueue(async () => {
@@ -606,6 +635,7 @@ export default function ListPage() {
         color: list.color,
         visibility: 'friends',
         position: mine.length,
+        spoiler: list.spoiler || '',
       })
       try {
         await copyItems(created.id, itemsRef.current)
@@ -702,6 +732,12 @@ export default function ListPage() {
     ? items.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
     : items.map((item, i) => ({ item, rank: i + 1 }))
 
+  // spoiler topics used on this list (owner: suggestions; friends: the "I've seen it" checkboxes)
+  const spoilerTopics = [...new Map(items.filter((i) => i.spoiler).map((i) => [spoilerKey(i.spoiler), i.spoiler.trim()])).values()]
+  const listCovered = !isOwner && !listRevealed && isHidden(list.spoiler, list.owner_id)
+  const itemCovered = (item) => !isOwner && !revealedItems.has(item.id) && isHidden(item.spoiler, list.owner_id)
+  const revealItem = (itemId) => setRevealedItems((cur) => new Set(cur).add(itemId))
+
   const matchesTitle = (mine) => norm(mine.title) === norm(list.title)
   const sortedMine = myLists ? [...myLists].sort((a, b) => Number(matchesTitle(b)) - Number(matchesTitle(a))) : []
 
@@ -754,22 +790,20 @@ export default function ListPage() {
         </>
       )}
 
+      {list.spoiler && (isOwner || !listCovered) && <p className="spoiler-note small">⚠️ Spoilers for {list.spoiler}</p>}
+
       {isOwner && (
-        <div className="like-row">
+        <div className="like-row owner-like-row">
           {likes !== null && likes.length > 0 && (
-            <button className="like-btn on" onClick={() => openLikers('likes')}>
+            <button className="like-btn on" onClick={() => openLikers('likes')} aria-label={`${likes.length} ${likes.length === 1 ? 'like' : 'likes'}. See who`}>
               <Heart filled />
-              <span>
-                {likes.length} {likes.length === 1 ? 'like' : 'likes'}
-              </span>
+              <span>{likes.length}</span>
             </button>
           )}
           {favs !== null && favs.length > 0 && (
-            <button className="like-btn fav on" onClick={() => openLikers('favorites')}>
+            <button className="like-btn fav on" onClick={() => openLikers('favorites')} aria-label={`${favs.length} ${favs.length === 1 ? 'favorite' : 'favorites'}. See who`}>
               <Star filled />
-              <span>
-                {favs.length} {favs.length === 1 ? 'favorite' : 'favorites'}
-              </span>
+              <span>{favs.length}</span>
             </button>
           )}
           {items.length > 0 && (
@@ -841,6 +875,7 @@ export default function ListPage() {
                   item={item}
                   rank={rank}
                   total={items.length}
+                  topics={spoilerTopics}
                   editing={editingId === item.id}
                   flash={flashIds.includes(item.id)}
                   filtering={filtering}
@@ -860,29 +895,68 @@ export default function ListPage() {
             </ol>
           </SortableContext>
         </DndContext>
+      ) : listCovered ? (
+        <div className="card spoiler-cover">
+          <p className="spoiler-cover-icon" aria-hidden="true">⚠️</p>
+          <h3>Spoilers for {list.spoiler}</h3>
+          <p className="muted small">@{list.owner?.username ?? 'Your friend'} marked this whole list as spoilers.</p>
+          <div className="spoiler-cover-actions">
+            <button className="btn primary" onClick={() => setSeen(list.spoiler, true)}>
+              I&rsquo;ve seen it
+            </button>
+            <button className="btn" onClick={() => setListRevealed(true)}>
+              Show anyway
+            </button>
+          </div>
+        </div>
       ) : (
-        <ol className="rank-list">
-          {shown.map(({ item, rank }) => (
-            <li key={item.id} id={`item-${item.id}`} className={`row${flashIds.includes(item.id) ? ' flash' : ''}${changeInfo?.ids.includes(item.id) ? ' changed' : ''}`}>
-              <div className="row-main">
-                <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
-                {item.image_path && (
-                  <button className="row-thumb" onClick={() => setViewing(item)} aria-label={`View photo of ${item.title}`}>
-                    <img src={imageUrl(item.image_path)} alt="" loading="lazy" />
-                  </button>
-                )}
-                <div className="row-text static">
-                  <span className="row-title">
-                    {item.title}
-                    {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
-                  </span>
-                  {item.note && <span className="row-note">{item.note}</span>}
-                </div>
-              </div>
-              <ReactionBar reactions={reactionsFor(item.id)} userId={user.id} onReact={(e) => react(item.id, e)} onWho={() => {}} />
-            </li>
-          ))}
-        </ol>
+        <>
+          {spoilerTopics.length > 0 && (
+            <div className="card spoiler-topics">
+              <b className="small">⚠️ Some items are spoilers. Tick what you&rsquo;ve seen to show them:</b>
+              {spoilerTopics.map((t) => (
+                <label key={spoilerKey(t)} className="check-row">
+                  <input type="checkbox" checked={isSeen(t)} onChange={(e) => setSeen(t, e.target.checked)} />
+                  <span className="small">{t}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <ol className="rank-list">
+            {shown.map(({ item, rank }) => {
+              const covered = itemCovered(item)
+              return (
+                <li key={item.id} id={`item-${item.id}`} className={`row${flashIds.includes(item.id) ? ' flash' : ''}${changeInfo?.ids.includes(item.id) ? ' changed' : ''}`}>
+                  <div className="row-main">
+                    <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
+                    {item.image_path && !covered && (
+                      <button className="row-thumb" onClick={() => setViewing(item)} aria-label={`View photo of ${item.title}`}>
+                        <img src={imageUrl(item.image_path)} alt="" loading="lazy" />
+                      </button>
+                    )}
+                    {covered ? (
+                      <button className="row-text spoiler-row" onClick={() => revealItem(item.id)} aria-label={`Spoiler for ${item.spoiler}. Tap to show`}>
+                        <span className="spoiler-mask">
+                          <span className="spoiler-label">Spoiler: {item.spoiler}</span>
+                        </span>
+                        <span className="row-note">Tap to show</span>
+                      </button>
+                    ) : (
+                      <div className="row-text static">
+                        <span className="row-title">
+                          {item.title}
+                          {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
+                        </span>
+                        {item.note && <span className="row-note">{item.note}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <ReactionBar reactions={reactionsFor(item.id)} userId={user.id} onReact={(e) => react(item.id, e)} onWho={() => {}} />
+                </li>
+              )
+            })}
+          </ol>
+        </>
       )}
 
       <div ref={endRef} className="list-end" />

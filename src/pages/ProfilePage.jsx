@@ -6,6 +6,7 @@ import { getFriendships, getListsByOwner, getMyBlocks, getProfile, removeFriends
 import { sameTopic } from '../compare.js'
 import { Avatar, Empty, SearchBox, Spinner, TopBar } from '../components/ui.jsx'
 import ListCard from '../components/ListCard.jsx'
+import { useHiddenTopic } from '../spoilers.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 export default function ProfilePage() {
@@ -20,6 +21,7 @@ export default function ProfilePage() {
   const [friendship, setFriendship] = useState(null)
   const [ready, setReady] = useState(false)
   const [query, setQuery] = useState('')
+  const hiddenTopic = useHiddenTopic()
   const [blocked, setBlocked] = useState(false) // I blocked them
   const [menuOpen, setMenuOpen] = useState(false)
   const [reporting, setReporting] = useState(null)
@@ -97,7 +99,9 @@ export default function ProfilePage() {
     ? lists
         .map((list) => {
           const titleHit = list.title.toLowerCase().includes(q)
-          const itemHits = (list.list_items || []).filter((it) => it.title.toLowerCase().includes(q)).sort((a, b) => a.position - b.position)
+          const itemHits = (list.list_items || [])
+            .filter((it) => !hiddenTopic(list, it) && it.title.toLowerCase().includes(q))
+            .sort((a, b) => a.position - b.position)
           return titleHit || itemHits.length ? { list, itemHits } : null
         })
         .filter(Boolean)

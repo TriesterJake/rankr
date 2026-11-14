@@ -5,6 +5,7 @@ import { useToast } from '../toast.jsx'
 import { getItems, getList } from '../api.js'
 import { compareMany } from '../compareMany.js'
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import { SpoilerText, useHiddenTopic } from '../spoilers.jsx'
 
 const ID = /^[0-9a-f-]{36}$/i
 
@@ -16,6 +17,7 @@ export default function MultiComparePage() {
   const [data, setData] = useState(undefined) // undefined loading, null failed
   const [showSingles, setShowSingles] = useState(false)
   const [view, setView] = useState('table') // table | side
+  const hiddenTopic = useHiddenTopic()
 
   useEffect(() => {
     if (ids.length < 2) {
@@ -60,6 +62,13 @@ export default function MultiComparePage() {
   }
 
   const who = data.map(({ list }) => (list.owner_id === user.id ? 'You' : list.owner?.display_name || list.owner?.username || 'Friend'))
+  // a row is covered when it isn't on your list and its item is a spoiler you haven't seen
+  const mine = data.findIndex(({ list }) => list.owner_id === user.id)
+  const rowSpoiler = (r) => {
+    if (mine >= 0 && r.ranks[mine] !== null) return ''
+    const { list, items } = data[r.firstList]
+    return hiddenTopic(list, items[r.ranks[r.firstList] - 1])
+  }
   const short = (name) => (name.length > 7 ? `${name.slice(0, 6)}…` : name)
   const gridStyle = { '--n': data.length }
 
@@ -89,7 +98,9 @@ export default function MultiComparePage() {
             const allSame = r.present > 1 && r.ranks.filter((x) => x !== null).every((x) => x === best)
             return (
               <div key={`${r.firstList}-${r.title}-${r.ranks.join('.')}`} className={allSame ? 'mc-row mc-same' : 'mc-row'} style={gridStyle}>
-                <span className="mc-title">{r.title}</span>
+                <span className="mc-title">
+                  <SpoilerText topic={rowSpoiler(r)}>{r.title}</SpoilerText>
+                </span>
                 {r.ranks.map((rank, i) => (
                   <span key={i} className={rank === null ? 'mc-rank none' : rank === best && r.present > 1 ? 'mc-rank best' : 'mc-rank'}>
                     {rank === null ? '–' : `#${rank}`}
@@ -169,7 +180,9 @@ export default function MultiComparePage() {
                       return (
                         <li key={item.id} className={p === data.length ? 'shared' : p > 1 ? 'similar' : 'only'}>
                           <b>{i + 1}</b>
-                          <span>{item.title}</span>
+                          <span>
+                            <SpoilerText topic={result.presentOn[li][i].has(mine) ? '' : hiddenTopic(list, item)}>{item.title}</SpoilerText>
+                          </span>
                         </li>
                       )
                     })}
