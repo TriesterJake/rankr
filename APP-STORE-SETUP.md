@@ -59,7 +59,7 @@ On your phone's Gmail app, tap the **From** line when writing an email to pick s
 - **Support URL:** `https://rankr.store/support`
 - **Age rating:** answer the questions truthfully. RankR has user-generated content (lists, names, photos) that friends can see, but
   no chat. Expect a rating of 13+ or higher. Don't choose the Kids category.
-- **App Privacy** ("nutrition label"): you collect **Email address**, **Photos**, **Other user content** and a **User ID**. All of it is
+- **App Privacy** ("nutrition label"): you collect **Email address**, **Photos**, **Audio data** (voice memos), **Other user content** and a **User ID**. All of it is
   linked to the user and used for app functionality. None of it is used for tracking.
 - **App Review notes:** give the reviewer a test account (email + password) that already has a friend with a few lists. Mention:
   "Report and block: tap ··· at the top of a friend's list or profile, or next to an idea. Account deletion: Me -> Delete my account.

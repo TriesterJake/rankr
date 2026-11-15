@@ -28,7 +28,7 @@ function Privacy() {
           profile picture if you add one.
         </li>
         <li>
-          <b>What you make:</b> your lists, items, notes and photos, plus your likes, favorites, reactions, friends, friend requests and
+          <b>What you make:</b> your lists, items, notes, photos and voice memos, plus your likes, favorites, reactions, friends, friend requests and
           your private friend ranking.
         </li>
         <li>
@@ -52,8 +52,8 @@ function Privacy() {
           People you don&rsquo;t know see only the title, never your name or items. You can turn this off on the Me tab or for a single list.
         </li>
         <li>
-          Photos are stored at long, random web addresses. They aren&rsquo;t listed anywhere, but anyone who has a photo&rsquo;s exact address
-          could open it.
+          Photos and voice memos are stored at long, random web addresses. They aren&rsquo;t listed anywhere, but anyone who has a file&rsquo;s
+          exact address could open it. The microphone is only used while you are recording a voice memo.
         </li>
       </ul>
 
@@ -61,7 +61,7 @@ function Privacy() {
       <p>We share data only with the services RankR needs in order to work. They are not allowed to use it for anything else:</p>
       <ul>
         <li>
-          <b>Supabase</b> stores the database, logins and photos.
+          <b>Supabase</b> stores the database, logins, photos and voice memos.
         </li>
         <li>
           <b>Vercel</b> hosts the website.
@@ -78,7 +78,7 @@ function Privacy() {
       <h2>Deleting your data</h2>
       <p>
         You can change your name, picture and lists at any time. To delete everything, go to <b>Me &rarr; Delete my account</b>. That
-        permanently removes your login, profile, lists, items, photos, likes, reactions and friendships. Reports about content that broke our
+        permanently removes your login, profile, lists, items, photos, voice memos, likes, reactions and friendships. Reports about content that broke our
         rules may be kept for safety. You can also email us to ask for a copy of your data or to have it deleted.
       </p>
 
@@ -123,7 +123,7 @@ function Terms() {
       <h2 id="guidelines">Community guidelines</h2>
       <p>
         RankR is meant to be fun and safe for everyone 13 and up. There is <b>no tolerance for objectionable content or abusive users</b>. Do not
-        post lists, items, names, photos or profile pictures that include:
+        post lists, items, names, photos, voice memos or profile pictures that include:
       </p>
       <ul>
         <li>Sexual content or nudity</li>

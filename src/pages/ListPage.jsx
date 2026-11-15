@@ -9,7 +9,8 @@ import { useToast } from '../toast.jsx'
 import { changeSummary, changesParam as changesFromRows, parseChanges, pickChanged } from '../changeHighlights.js'
 import { addItems, copyItems, createList, deleteItem, deleteList, getEditHints, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
-import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
+import { imageUrl, removeImages, resizeImage, uploadAudio, uploadItemImage } from '../images.js'
+import { VoiceMemoField, VoicePlay } from '../components/VoiceMemo.jsx'
 import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
 import ListForm from '../components/ListForm.jsx'
 import LikeButton, { Heart } from '../components/LikeButton.jsx'
@@ -31,7 +32,7 @@ const parseLines = (text) =>
     .map((line) => line.replace(/^\s*(?:\d+\s*[.)\-:]|[-*\u2022])\s*/, '').trim())
     .filter(Boolean)
 
-function EditPanel({ item, rank, total, topics, photoBusy, onPhoto, onRemovePhoto, onSave, onDelete, onCancel }) {
+function EditPanel({ item, rank, total, topics, photoBusy, audioBusy, onPhoto, onRemovePhoto, onAudio, onRemoveAudio, onAudioError, onSave, onDelete, onCancel }) {
   const [title, setTitle] = useState(item.title)
   const [note, setNote] = useState(item.note || '')
   const [moveTo, setMoveTo] = useState(String(rank))
@@ -80,6 +81,13 @@ function EditPanel({ item, rank, total, topics, photoBusy, onPhoto, onRemovePhot
           )}
         </div>
       </div>
+      <VoiceMemoField
+        item={item}
+        busy={audioBusy}
+        onSave={(blob, seconds, format) => onAudio(item.id, blob, seconds, format)}
+        onRemove={() => onRemoveAudio(item.id)}
+        onError={onAudioError}
+      />
       <label className="field">
         <span className="label">Spoiler for (optional)</span>
         <input
@@ -122,7 +130,7 @@ function EditPanel({ item, rank, total, topics, photoBusy, onPhoto, onRemovePhot
   )
 }
 
-function SortableRow({ item, rank, total, topics, editing, flash, filtering, photoBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onView }) {
+function SortableRow({ item, rank, total, topics, editing, flash, filtering, photoBusy, audioBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onAudio, onRemoveAudio, onAudioError, onView }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: filtering })
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
   return (
@@ -148,6 +156,7 @@ function SortableRow({ item, rank, total, topics, editing, flash, filtering, pho
           </span>
           {item.note && <span className="row-note">{item.note}</span>}
         </button>
+        {item.audio_path && <VoicePlay path={item.audio_path} seconds={item.audio_seconds} label={`voice memo for ${item.title}`} />}
         {!filtering && (
         <button className="drag-handle" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.title}`}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -169,8 +178,12 @@ function SortableRow({ item, rank, total, topics, editing, flash, filtering, pho
           total={total}
           topics={topics}
           photoBusy={photoBusy}
+          audioBusy={audioBusy}
           onPhoto={onPhoto}
           onRemovePhoto={onRemovePhoto}
+          onAudio={onAudio}
+          onRemoveAudio={onRemoveAudio}
+          onAudioError={onAudioError}
           onSave={onSave}
           onDelete={onDelete}
           onCancel={onToggle}
@@ -203,6 +216,7 @@ export default function ListPage() {
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState(null) // duplicate warning waiting for an answer
   const [photoBusyId, setPhotoBusyId] = useState(null)
+  const [audioBusyId, setAudioBusyId] = useState(null)
   const [likes, setLikes] = useState(null) // user ids who liked this list; null until loaded
   const [likersOpen, setLikersOpen] = useState(false)
   const [likers, setLikers] = useState(null)
@@ -357,7 +371,7 @@ export default function ListPage() {
     enqueue(async () => {
       try {
         await deleteItem(itemId)
-        if (p.item.image_path) removeImages([p.item.image_path])
+        removeImages([p.item.image_path, p.item.audio_path])
         await reorderItems(id, itemsRef.current.map((i) => i.id))
       } catch {
         toast('Could not delete that item')
@@ -456,6 +470,36 @@ export default function ListPage() {
     } finally {
       setPhotoBusyId(null)
     }
+  }
+
+  async function setAudio(itemId, blob, seconds, format) {
+    setAudioBusyId(itemId)
+    try {
+      const path = await uploadAudio(user.id, blob, format)
+      const old = itemsRef.current.find((i) => i.id === itemId)?.audio_path
+      await updateItem(itemId, { audio_path: path, audio_seconds: seconds })
+      commit(itemsRef.current.map((i) => (i.id === itemId ? { ...i, audio_path: path, audio_seconds: seconds } : i)))
+      if (old) removeImages([old])
+    } catch {
+      toast('Could not save the voice memo')
+    } finally {
+      setAudioBusyId(null)
+    }
+  }
+
+  function removeAudio(itemId) {
+    const old = itemsRef.current.find((i) => i.id === itemId)?.audio_path
+    if (!old) return
+    commit(itemsRef.current.map((i) => (i.id === itemId ? { ...i, audio_path: null, audio_seconds: null } : i)))
+    enqueue(async () => {
+      try {
+        await updateItem(itemId, { audio_path: null, audio_seconds: null })
+        removeImages([old])
+      } catch {
+        toast('Could not remove the voice memo')
+        load()
+      }
+    })
   }
 
   function removePhoto(itemId) {
@@ -602,7 +646,7 @@ export default function ListPage() {
 
   async function handleDeleteList() {
     if (!window.confirm(`Delete "${list.title}" and everything in it?`)) return
-    const paths = [...itemsRef.current.map((i) => i.image_path), list.icon_path].filter(Boolean)
+    const paths = [...itemsRef.current.flatMap((i) => [i.image_path, i.audio_path]), list.icon_path].filter(Boolean)
     try {
       await deleteList(id)
       removeImages(paths)
@@ -880,6 +924,10 @@ export default function ListPage() {
                   flash={flashIds.includes(item.id)}
                   filtering={filtering}
                   photoBusy={photoBusyId === item.id}
+                  audioBusy={audioBusyId === item.id}
+                  onAudio={setAudio}
+                  onRemoveAudio={removeAudio}
+                  onAudioError={toast}
                   reactions={reactionsFor(item.id)}
                   userId={user.id}
                   onReact={() => {}}
@@ -946,6 +994,9 @@ export default function ListPage() {
                         </span>
                         {item.note && <span className="row-note">{item.note}</span>}
                       </div>
+                    )}
+                    {item.audio_path && !covered && (
+                      <VoicePlay path={item.audio_path} seconds={item.audio_seconds} label={`voice memo for ${item.title}`} />
                     )}
                   </div>
                   <ReactionBar reactions={reactionsFor(item.id)} userId={user.id} onReact={(e) => react(item.id, e)} onWho={() => {}} />

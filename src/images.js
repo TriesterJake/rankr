@@ -68,3 +68,10 @@ export async function removeImages(paths) {
     /* ignore */
   }
 }
+// Voice memos live in the same bucket and folder as photos. Returns the stored path.
+export async function uploadAudio(userId, blob, { type, ext }) {
+  const path = `${userId}/${crypto.randomUUID()}.${ext}`
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: type, cacheControl: '31536000' })
+  if (error) throw error
+  return path
+}
