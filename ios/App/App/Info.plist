@@ -51,6 +51,8 @@
 	<string>RankR uses your photos so you can add a profile picture and pictures to your lists and items.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>RankR uses the microphone so you can record voice memos for your list items.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RankR uses your location only when you tap “Use my current location” to pin a place on a list item.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>RankR uses the camera so you can take a picture for your profile or list items.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>

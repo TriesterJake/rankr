@@ -83,7 +83,7 @@ export function Sheet({ open, onClose, title, children }) {
         <div className="sheet-grab" />
         <div className="sheet-head">
           <h2>{title}</h2>
-          <button className="text-btn" onClick={onClose}>
+          <button type="button" className="text-btn" onClick={onClose}>
             Close
           </button>
         </div>

@@ -35,6 +35,10 @@ function Privacy() {
           <b>Safety tools:</b> reports you send, people you block, and ideas you hide.
         </li>
         <li>
+          <b>Places:</b> if you add a location to an item, its name and map point are saved with the item. Your location is only read when
+          you tap &ldquo;Use my current location&rdquo;, and it isn&rsquo;t tracked or saved anywhere else.
+        </li>
+        <li>
           <b>Notifications:</b> if you turn on phone notifications, a token from your phone&rsquo;s notification service so we can send them.
         </li>
         <li>
@@ -68,6 +72,10 @@ function Privacy() {
         </li>
         <li>
           <b>Resend</b> sends sign-up and password emails.
+        </li>
+        <li>
+          <b>Photon</b> (by komoot, using OpenStreetMap) looks up places when you search for a location or use your current location. It
+          receives only the search words or the map point, not your name or account.
         </li>
         <li>
           <b>Apple or Google</b> deliver phone notifications if you turn them on.

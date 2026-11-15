@@ -185,7 +185,14 @@ export const addItems = async (listId, titles, startPosition) => {
 
 // Copy items (title + note, in order) into a list, e.g. when copying a friend's list.
 export const copyItems = async (listId, items) => {
-  const rows = items.map((it, i) => ({ list_id: listId, title: it.title, note: it.note || '', position: i, ...(it.spoiler ? { spoiler: it.spoiler } : {}) }))
+  const rows = items.map((it, i) => ({
+    list_id: listId,
+    title: it.title,
+    note: it.note || '',
+    position: i,
+    ...(it.spoiler ? { spoiler: it.spoiler } : {}),
+    ...(it.place_name ? { place_name: it.place_name, place_lat: it.place_lat ?? null, place_lng: it.place_lng ?? null } : {}),
+  }))
   if (rows.length === 0) return []
   return unwrapW(await supabase.from('list_items').insert(rows).select())
 }

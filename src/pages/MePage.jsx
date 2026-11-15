@@ -9,6 +9,7 @@ import { removeImages, resizeImage, uploadItemImage } from '../images.js'
 import { Avatar, TopBar } from '../components/ui.jsx'
 import { SUPPORT_EMAIL } from './LegalPage.jsx'
 import { useSpoilers } from '../spoilers.jsx'
+import { MAPS_APPS, getMapsApp, setMapsApp } from '../components/Place.jsx'
 
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
 
@@ -28,6 +29,7 @@ export default function MePage() {
   const [blocks, setBlocks] = useState(null) // loaded when "Blocked people" is opened
   const { seenList, setSeen } = useSpoilers()
   const [newSeen, setNewSeen] = useState('')
+  const [mapsApp, setMapsAppState] = useState(getMapsApp)
 
   // the profile can finish loading after this page first renders
   useEffect(() => {
@@ -276,6 +278,30 @@ export default function MePage() {
           </p>
         </div>
       )}
+
+      <div className="card">
+        <label className="toggle-row">
+          <span>
+            <b>Maps app for directions</b>
+            <p className="muted small">Used when you tap a 📍 location on a list item.</p>
+          </span>
+          <select
+            className="maps-select"
+            value={mapsApp}
+            onChange={(e) => {
+              setMapsApp(e.target.value)
+              setMapsAppState(e.target.value)
+            }}
+          >
+            <option value="">Ask each time</option>
+            {MAPS_APPS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <details className="card small-section">
         <summary>Spoilers I&rsquo;ve seen{seenList.length > 0 ? ` (${seenList.length})` : ''}</summary>

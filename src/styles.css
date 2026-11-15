@@ -2356,3 +2356,68 @@ button.rank-pick {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Locations ---------- */
+
+.place-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.place-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-place {
+  display: block;
+  margin-top: 4px;
+}
+.row-place-line {
+  padding: 0 0 6px 52px;
+}
+.place-search {
+  display: flex;
+  gap: 8px;
+}
+.place-search input {
+  flex: 1;
+  min-width: 0;
+}
+.place-here {
+  align-self: flex-start;
+  padding: 2px 0;
+}
+.place-result .pick-title {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+.place-area {
+  font-weight: 500;
+}
+.place-remember {
+  margin-top: 14px;
+}
+.maps-select {
+  flex: none;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+}

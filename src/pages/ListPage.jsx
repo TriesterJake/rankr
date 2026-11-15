@@ -11,6 +11,7 @@ import { addItems, copyItems, createList, deleteItem, deleteList, getEditHints, 
 import { norm, findSimilarItem } from '../compare.js'
 import { imageUrl, removeImages, resizeImage, uploadAudio, uploadItemImage } from '../images.js'
 import { VoiceMemoField, VoicePlay } from '../components/VoiceMemo.jsx'
+import { PlaceChip, PlaceField } from '../components/Place.jsx'
 import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
 import ListForm from '../components/ListForm.jsx'
 import LikeButton, { Heart } from '../components/LikeButton.jsx'
@@ -32,7 +33,7 @@ const parseLines = (text) =>
     .map((line) => line.replace(/^\s*(?:\d+\s*[.)\-:]|[-*\u2022])\s*/, '').trim())
     .filter(Boolean)
 
-function EditPanel({ item, rank, total, topics, photoBusy, audioBusy, onPhoto, onRemovePhoto, onAudio, onRemoveAudio, onAudioError, onSave, onDelete, onCancel }) {
+function EditPanel({ item, rank, total, topics, photoBusy, audioBusy, onPhoto, onRemovePhoto, onAudio, onRemoveAudio, onAudioError, onPlace, onSave, onDelete, onCancel }) {
   const [title, setTitle] = useState(item.title)
   const [note, setNote] = useState(item.note || '')
   const [moveTo, setMoveTo] = useState(String(rank))
@@ -88,6 +89,7 @@ function EditPanel({ item, rank, total, topics, photoBusy, audioBusy, onPhoto, o
         onRemove={() => onRemoveAudio(item.id)}
         onError={onAudioError}
       />
+      <PlaceField item={item} onChange={(patch) => onPlace(item.id, patch)} onError={onAudioError} />
       <label className="field">
         <span className="label">Spoiler for (optional)</span>
         <input
@@ -130,7 +132,7 @@ function EditPanel({ item, rank, total, topics, photoBusy, audioBusy, onPhoto, o
   )
 }
 
-function SortableRow({ item, rank, total, topics, editing, flash, filtering, photoBusy, audioBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onAudio, onRemoveAudio, onAudioError, onView }) {
+function SortableRow({ item, rank, total, topics, editing, flash, filtering, photoBusy, audioBusy, reactions, userId, onReact, onWho, onToggle, onSave, onDelete, onPhoto, onRemovePhoto, onAudio, onRemoveAudio, onAudioError, onPlace, onView }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: filtering })
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
   return (
@@ -170,6 +172,11 @@ function SortableRow({ item, rank, total, topics, editing, flash, filtering, pho
         </button>
         )}
       </div>
+      {item.place_name && !editing && (
+        <div className="row-place-line">
+          <PlaceChip item={item} />
+        </div>
+      )}
       <ReactionBar reactions={reactions} userId={userId} isOwner onReact={onReact} onWho={onWho} />
       {editing && (
         <EditPanel
@@ -184,6 +191,7 @@ function SortableRow({ item, rank, total, topics, editing, flash, filtering, pho
           onAudio={onAudio}
           onRemoveAudio={onRemoveAudio}
           onAudioError={onAudioError}
+          onPlace={onPlace}
           onSave={onSave}
           onDelete={onDelete}
           onCancel={onToggle}
@@ -485,6 +493,19 @@ export default function ListPage() {
     } finally {
       setAudioBusyId(null)
     }
+  }
+
+  // Save, change or remove an item's location: patch = { place_name, place_lat, place_lng }
+  function setPlace(itemId, patch) {
+    commit(itemsRef.current.map((i) => (i.id === itemId ? { ...i, ...patch } : i)))
+    enqueue(async () => {
+      try {
+        await updateItem(itemId, patch)
+      } catch {
+        toast('Could not save the location')
+        load()
+      }
+    })
   }
 
   function removeAudio(itemId) {
@@ -928,6 +949,7 @@ export default function ListPage() {
                   onAudio={setAudio}
                   onRemoveAudio={removeAudio}
                   onAudioError={toast}
+                  onPlace={setPlace}
                   reactions={reactionsFor(item.id)}
                   userId={user.id}
                   onReact={() => {}}
@@ -993,6 +1015,11 @@ export default function ListPage() {
                           {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
                         </span>
                         {item.note && <span className="row-note">{item.note}</span>}
+                        {item.place_name && (
+                          <span className="row-place">
+                            <PlaceChip item={item} />
+                          </span>
+                        )}
                       </div>
                     )}
                     {item.audio_path && !covered && (
