@@ -2462,3 +2462,6 @@ button.rank-pick {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 13%, var(--surface-2));
 }
+.topbar-bottom .reorder-banner {
+  margin: 6px 0 0;
+}

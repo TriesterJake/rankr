@@ -14,7 +14,8 @@ export function captureRows(ids, prefix) {
 }
 
 // focusId: a row to bring on screen first (e.g. the one being put back). Otherwise the row that moves farthest.
-export function playRows(before, prefix, focusId = null, duration = 420) {
+// scroll: false when the caller moves the page itself (e.g. the reorder replay follows one item).
+export function playRows(before, prefix, focusId = null, duration = 420, scroll = true) {
   requestAnimationFrame(() => {
     const moves = []
     for (const [id, top] of before) {
@@ -26,7 +27,7 @@ export function playRows(before, prefix, focusId = null, duration = 420) {
     const focus =
       (focusId && document.getElementById(prefix + focusId)) ||
       moves.reduce((best, m) => (!best || Math.abs(m.dy) > Math.abs(best.dy) ? m : best), null)?.el
-    if (focus) {
+    if (focus && scroll) {
       const r = focus.getBoundingClientRect()
       if (r.top < 120 || r.bottom > window.innerHeight - 90) focus.scrollIntoView({ block: 'center' })
     }
@@ -38,4 +39,26 @@ export function playRows(before, prefix, focusId = null, duration = 420) {
       })
     }
   })
+}
+
+// Glide the page to a scroll position over `duration` ms, with the same easing as the row slides.
+export function glideTo(y, duration = 420) {
+  const start = window.scrollY
+  const end = Math.max(0, Math.min(y, document.documentElement.scrollHeight - window.innerHeight))
+  if (Math.abs(end - start) < 2) return
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return window.scrollTo(0, end)
+  const t0 = performance.now()
+  // cubic-bezier(0.2, 0.8, 0.2, 1) is close to this ease-out
+  const ease = (t) => 1 - Math.pow(1 - t, 3)
+  const step = (now) => {
+    const t = Math.min(1, (now - t0) / duration)
+    window.scrollTo(0, start + (end - start) * ease(t))
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+export const pageTopOf = (id) => {
+  const el = document.getElementById(id)
+  return el ? el.getBoundingClientRect().top + window.scrollY : null
 }

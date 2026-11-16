@@ -1768,7 +1768,7 @@ returns void
 language plpgsql security invoker set search_path = public as $$
 begin
   perform set_config(
-    'rankr.old_order.' || replace(p_list_id::text, '-', ''),
+    'rankr.o' || replace(p_list_id::text, '-', ''),
     coalesce((select array_agg(li.id order by li.position)::text from public.list_items li where li.list_id = p_list_id), ''),
     true);
 
@@ -1789,7 +1789,7 @@ declare l record; r record; flag text; old_ids uuid[];
 begin
   -- the order before this change, saved by reorder_list_items() (reorders only)
   if p_kind = 'reordered' then
-    old_ids := nullif(current_setting('rankr.old_order.' || replace(p_list::text, '-', ''), true), '')::uuid[];
+    old_ids := nullif(current_setting('rankr.o' || replace(p_list::text, '-', ''), true), '')::uuid[];
   end if;
   -- re-ranking changes many rows at once: one "reordered" per transaction is plenty
   if p_kind = 'reordered' then

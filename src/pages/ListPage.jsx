@@ -21,7 +21,7 @@ import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 import { markNewList } from '../newList.js'
 import { useShakeUndo } from '../undo.jsx'
-import { captureRows, playRows } from '../flip.js'
+import { captureRows, glideTo, pageTopOf, playRows } from '../flip.js'
 import { SpoilerMask, spoilerKey, useSpoilers } from '../spoilers.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
@@ -327,7 +327,7 @@ export default function ListPage() {
     const apply = (param) => {
       const changes = parseChanges(param)
       const { ids, labels } = pickChanged(items, changes)
-      setChangeInfo({ ids, labels, summary: changeSummary(changes) })
+      setChangeInfo({ ids, labels, changes })
       const first = items.find((i) => ids.includes(i.id))
       if (first) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${first.id}`)?.scrollIntoView({ block: 'center' })))
     }
@@ -362,21 +362,42 @@ export default function ListPage() {
   }
 
   const replayTimer = useRef(null)
+  const SLIDE_MS = 1000
   function startReplay(oldIds) {
     const shifts = shiftsFrom(oldIds)
     if (Object.keys(shifts).length === 0) return
     setReorder({ oldIds, shifts })
-    playReplay()
+    playReplay(shifts)
   }
-  function playReplay() {
+  // The item that moved the most: the "camera" follows it.
+  const mainMover = (shifts) => Object.entries(shifts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]?.[0]
+
+  function playReplay(shifts = reorder?.shifts) {
+    if (!shifts) return
     clearTimeout(replayTimer.current)
-    setShowOld(true) // draw the old order first...
+    const focus = mainMover(shifts)
+    const vh = window.innerHeight
+    setShowOld(true) // 1. draw the old order...
+    requestAnimationFrame(() => {
+      // ...with the main item about a third of the way down the screen, where it used to be
+      const oldTop = pageTopOf(`item-${focus}`)
+      if (oldTop != null) glideTo(oldTop - vh * 0.35, 350)
+    })
     replayTimer.current = setTimeout(() => {
-      // ...then let everything slide to where it is now
+      // 2. slide everything to where it is now, and move the page along with the main item
+      const oldTop = pageTopOf(`item-${focus}`)
       const before = captureRows(itemsRef.current.map((i) => i.id), 'item-')
       setShowOld(false)
-      playRows(before, 'item-', null, 900)
-    }, 900)
+      requestAnimationFrame(() => {
+        const newTop = pageTopOf(`item-${focus}`)
+        if (oldTop != null && newTop != null) {
+          // short move: frame both spots; long move: follow the item down (or up) the list
+          const target = Math.abs(newTop - oldTop) < vh * 0.45 ? (oldTop + newTop) / 2 - vh * 0.4 : newTop - vh * 0.35
+          glideTo(target, SLIDE_MS)
+        }
+        playRows(before, 'item-', null, SLIDE_MS, false)
+      })
+    }, 1300)
   }
   useEffect(() => () => clearTimeout(replayTimer.current), [])
 
@@ -854,6 +875,30 @@ export default function ListPage() {
     ? ordered.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
     : ordered.map((item, i) => ({ item, rank: i + 1 }))
   const movedCount = reorder ? Object.keys(reorder.shifts).length : 0
+  const replaying = Boolean(reorder && movedCount > 0 && !isOwner)
+  // "3 new items, the order changed": the replay already shows the order, so leave that part out then
+  const changeSummaryText = changeInfo?.changes ? changeSummary({ ...changeInfo.changes, reordered: replaying ? 0 : changeInfo.changes.reordered }) : ''
+  const reorderBanner = replaying && (
+    <div className="change-banner reorder-banner" role="status">
+      <span>
+        {showOld ? (
+          <>This is how it used to be&hellip;</>
+        ) : (
+          <>
+            <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> moved {movedCount} {movedCount === 1 ? 'item' : 'items'}
+          </>
+        )}
+      </span>
+      <span className="btn-row">
+        <button className="text-btn" onClick={() => playReplay()} disabled={showOld}>
+          Replay
+        </button>
+        <button className="text-btn muted" onClick={() => setReorder(null)}>
+          Hide
+        </button>
+      </span>
+    </div>
+  )
 
   // spoiler topics used on this list (owner: suggestions; friends: the "I've seen it" checkboxes)
   const spoilerTopics = [...new Map(items.filter((i) => i.spoiler).map((i) => [spoilerKey(i.spoiler), i.spoiler.trim()])).values()]
@@ -869,6 +914,7 @@ export default function ListPage() {
       <TopBar
         back
         title={list.title}
+        bottom={reorderBanner || undefined}
         subtitle={isOwner ? `${items.length} ${items.length === 1 ? 'item' : 'items'}` : `by @${list.owner?.username ?? 'friend'}`}
         right={
           isOwner ? (
@@ -972,32 +1018,10 @@ export default function ListPage() {
         </div>
       )}
 
-      {reorder && movedCount > 0 && !isOwner && (
-        <div className="change-banner reorder-banner" role="status">
-          <span>
-            {showOld ? (
-              <>This is how it used to be&hellip;</>
-            ) : (
-              <>
-                <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> moved {movedCount} {movedCount === 1 ? 'item' : 'items'}
-              </>
-            )}
-          </span>
-          <span className="btn-row">
-            <button className="text-btn" onClick={playReplay} disabled={showOld}>
-              Replay
-            </button>
-            <button className="text-btn muted" onClick={() => setReorder(null)}>
-              Hide
-            </button>
-          </span>
-        </div>
-      )}
-
-      {changeInfo && changeInfo.summary && (
+      {changeSummaryText && (
         <div className="change-banner" role="status">
           <span>
-            <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> made changes: {changeInfo.summary}
+            <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> made changes: {changeSummaryText}
           </span>
           <button className="text-btn" onClick={() => setChangeInfo(null)}>
             Got it
