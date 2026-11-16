@@ -2465,3 +2465,7 @@ button.rank-pick {
 .topbar-bottom .reorder-banner {
   margin: 6px 0 0;
 }
+.sliding-on-top {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  border-radius: 14px;
+}

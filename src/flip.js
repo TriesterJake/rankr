@@ -15,7 +15,8 @@ export function captureRows(ids, prefix) {
 
 // focusId: a row to bring on screen first (e.g. the one being put back). Otherwise the row that moves farthest.
 // scroll: false when the caller moves the page itself (e.g. the reorder replay follows one item).
-export function playRows(before, prefix, focusId = null, duration = 420, scroll = true) {
+// onTop: ids of rows that should slide over the others (the ones that were really moved).
+export function playRows(before, prefix, focusId = null, duration = 420, scroll = true, onTop = null) {
   requestAnimationFrame(() => {
     const moves = []
     for (const [id, top] of before) {
@@ -32,11 +33,24 @@ export function playRows(before, prefix, focusId = null, duration = 420, scroll 
       if (r.top < 120 || r.bottom > window.innerHeight - 90) focus.scrollIntoView({ block: 'center' })
     }
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
-    for (const { el, dy } of moves) {
-      el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], {
+    for (const { el, dy, id } of moves) {
+      const raise = onTop?.has(id)
+      if (raise) {
+        el.style.position = 'relative'
+        el.style.zIndex = '3'
+        el.classList.add('sliding-on-top')
+      }
+      const anim = el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], {
         duration,
         easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
       })
+      if (raise) {
+        anim.onfinish = anim.oncancel = () => {
+          el.style.zIndex = ''
+          el.style.position = ''
+          el.classList.remove('sliding-on-top')
+        }
+      }
     }
   })
 }

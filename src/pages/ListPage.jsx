@@ -347,16 +347,37 @@ export default function ListPage() {
 
   // ---------- replaying a friend's reorder ----------
 
-  // How far each item moved (+ = up the list), counting only items on both the old and new list.
+  // Which items were really moved, and by how much (+ = up the list). Moving #2 to #10 also shifts #3-#10 up by one,
+  // but only #2 was moved: the rest kept their order relative to each other. So the items that kept their relative
+  // order (the longest run still in the old order) count as "pushed", and everything else as "moved".
   function shiftsFrom(oldIds) {
     const now = itemsRef.current
     const nowIds = new Set(now.map((i) => i.id))
     const oldKept = oldIds.filter((x) => nowIds.has(x))
-    const newKept = now.map((i) => i.id).filter((x) => oldKept.includes(x))
+    const oldPos = new Map(oldKept.map((x, i) => [x, i]))
+    const newKept = now.map((i) => i.id).filter((x) => oldPos.has(x))
+    const seq = newKept.map((x) => oldPos.get(x))
+
+    // longest increasing run of old positions, read in the new order
+    const tails = [] // index into seq of the smallest tail for each length
+    const prev = new Array(seq.length).fill(-1)
+    seq.forEach((v, i) => {
+      let lo = 0
+      let hi = tails.length
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (seq[tails[mid]] < v) lo = mid + 1
+        else hi = mid
+      }
+      if (lo > 0) prev[i] = tails[lo - 1]
+      tails[lo] = i
+    })
+    const stayed = new Set()
+    for (let i = tails[tails.length - 1] ?? -1; i >= 0; i = prev[i]) stayed.add(newKept[i])
+
     const shifts = {}
     newKept.forEach((x, newIdx) => {
-      const d = oldKept.indexOf(x) - newIdx
-      if (d) shifts[x] = d
+      if (!stayed.has(x)) shifts[x] = oldPos.get(x) - newIdx
     })
     return shifts
   }
@@ -395,7 +416,7 @@ export default function ListPage() {
           const target = Math.abs(newTop - oldTop) < vh * 0.45 ? (oldTop + newTop) / 2 - vh * 0.4 : newTop - vh * 0.35
           glideTo(target, SLIDE_MS)
         }
-        playRows(before, 'item-', null, SLIDE_MS, false)
+        playRows(before, 'item-', null, SLIDE_MS, false, new Set(Object.keys(shifts)))
       })
     }, 1300)
   }
