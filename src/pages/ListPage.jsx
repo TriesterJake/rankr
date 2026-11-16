@@ -21,7 +21,7 @@ import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 import { markNewList } from '../newList.js'
 import { useShakeUndo } from '../undo.jsx'
-import { captureRows, glideTo, pageTopOf, playRows } from '../flip.js'
+import { captureRows, glideTo, pageTopOf, playRows, slideFollow } from '../flip.js'
 import { SpoilerMask, spoilerKey, useSpoilers } from '../spoilers.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
@@ -243,7 +243,9 @@ export default function ListPage() {
   const changesParam = searchParams.get('changes')
   const [changeInfo, setChangeInfo] = useState(null) // { ids, summary } from a notification
   const [reorder, setReorder] = useState(null) // { oldIds, shifts: { id: +2 } } how a friend reordered, from a notification
-  const [showOld, setShowOld] = useState(false) // drawing the list in its old order (before the replay slides it)
+  // while a replay plays: the order being drawn right now, and the moved items that already reached their spot
+  const [replay, setReplay] = useState(null) // { order: [ids], landed: [ids] }
+  const showOld = replay !== null
   const changesShown = useRef('')
   const focused = useRef(null)
 
@@ -382,45 +384,88 @@ export default function ListPage() {
     return shifts
   }
 
-  const replayTimer = useRef(null)
-  const SLIDE_MS = 1000
+  // One step per moved item, so each move can be watched on its own (the camera can only follow one item at a time).
+  // Starting from the old order, each moved item in turn jumps to its final spot among the items already settled.
+  function replaySteps(oldIds, shifts) {
+    const finalIds = itemsRef.current.map((i) => i.id)
+    const finalSet = new Set(finalIds)
+    let order = [...oldIds.filter((x) => finalSet.has(x)), ...finalIds.filter((x) => !oldIds.includes(x))]
+    const settled = new Set(finalIds.filter((x) => !(x in shifts)))
+    // top to bottom, in the old order
+    const movers = order.filter((x) => x in shifts)
+    const steps = []
+    for (const m of movers) {
+      const before = order.indexOf(m)
+      order = order.filter((x) => x !== m)
+      const fi = finalIds.indexOf(m)
+      let at = 0
+      for (let k = fi - 1; k >= 0; k--) {
+        if (settled.has(finalIds[k])) {
+          at = order.indexOf(finalIds[k]) + 1
+          break
+        }
+      }
+      order.splice(at, 0, m)
+      settled.add(m)
+      steps.push({ id: m, order: [...order], distance: Math.abs(at - before) })
+    }
+    return steps
+  }
+
+  const replayRun = useRef(0) // bumps to cancel a replay that is playing
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+  const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()))
   function startReplay(oldIds) {
     const shifts = shiftsFrom(oldIds)
     if (Object.keys(shifts).length === 0) return
     setReorder({ oldIds, shifts })
-    playReplay(shifts)
+    playReplay({ oldIds, shifts })
   }
-  // The item that moved the most: the "camera" follows it.
-  const mainMover = (shifts) => Object.entries(shifts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]?.[0]
+  function stopReplay() {
+    replayRun.current++
+    setReplay(null)
+  }
 
-  function playReplay(shifts = reorder?.shifts) {
-    if (!shifts) return
-    clearTimeout(replayTimer.current)
-    const focus = mainMover(shifts)
-    const vh = window.innerHeight
-    setShowOld(true) // 1. draw the old order...
-    requestAnimationFrame(() => {
-      // ...with the main item about a third of the way down the screen, where it used to be
-      const oldTop = pageTopOf(`item-${focus}`)
-      if (oldTop != null) glideTo(oldTop - vh * 0.35, 350)
-    })
-    replayTimer.current = setTimeout(() => {
-      // 2. slide everything to where it is now, and move the page along with the main item
-      const oldTop = pageTopOf(`item-${focus}`)
-      const before = captureRows(itemsRef.current.map((i) => i.id), 'item-')
-      setShowOld(false)
-      requestAnimationFrame(() => {
-        const newTop = pageTopOf(`item-${focus}`)
-        if (oldTop != null && newTop != null) {
-          // short move: frame both spots; long move: follow the item down (or up) the list
-          const target = Math.abs(newTop - oldTop) < vh * 0.45 ? (oldTop + newTop) / 2 - vh * 0.4 : newTop - vh * 0.35
-          glideTo(target, SLIDE_MS)
-        }
-        playRows(before, 'item-', null, SLIDE_MS, false, new Set(Object.keys(shifts)))
-      })
-    }, 1300)
+  async function playReplay(r = reorder) {
+    if (!r) return
+    const run = ++replayRun.current
+    const steps = replaySteps(r.oldIds, r.shifts)
+    if (steps.length === 0) return
+    const finalSet = new Set(itemsRef.current.map((i) => i.id))
+    const startOrder = [...r.oldIds.filter((x) => finalSet.has(x)), ...itemsRef.current.map((i) => i.id).filter((x) => !r.oldIds.includes(x))]
+
+    // 1. draw the old order, with the first moved item a third of the way down the screen
+    setReplay({ order: startOrder, landed: [] })
+    await nextFrame()
+    const firstTop = pageTopOf(`item-${steps[0].id}`)
+    if (firstTop != null) glideTo(firstTop - window.innerHeight * 0.35, 400)
+    await wait(1100)
+
+    // 2. move the items one at a time; longer moves take longer so they stay easy to follow
+    const landed = []
+    for (let i = 0; i < steps.length; i++) {
+      if (run !== replayRun.current) return
+      const step = steps[i]
+      if (i > 0) {
+        // bring the next one on screen before it moves
+        const top = pageTopOf(`item-${step.id}`)
+        const vh = window.innerHeight
+        const y = top == null ? null : top - window.scrollY
+        if (y != null && (y < vh * 0.3 || y > vh - 160)) {
+          glideTo(top - vh * 0.35, 500)
+          await wait(650)
+        } else await wait(250)
+        if (run !== replayRun.current) return
+      }
+      const before = captureRows(itemsRef.current.map((x) => x.id), 'item-')
+      landed.push(step.id)
+      setReplay({ order: step.order, landed: [...landed] })
+      const duration = Math.min(3600, 900 + step.distance * 55)
+      await slideFollow(before, 'item-', { duration, followId: step.id, onTop: new Set([step.id]) })
+    }
+    if (run === replayRun.current) setReplay(null)
   }
-  useEffect(() => () => clearTimeout(replayTimer.current), [])
+  useEffect(() => () => replayRun.current++, [])
 
   // ---------- editing actions (owner only) ----------
 
@@ -884,14 +929,9 @@ export default function ListPage() {
 
   const q = query.trim().toLowerCase()
   const filtering = q.length > 0
-  // during a replay, draw the friend's list in its old order (items added since go at the end)
+  // during a replay, draw the order the replay is up to (it starts with the old order; items added since go at the end)
   const ordered =
-    showOld && reorder && !isOwner
-      ? [
-          ...reorder.oldIds.map((x) => items.find((i) => i.id === x)).filter(Boolean),
-          ...items.filter((i) => !reorder.oldIds.includes(i.id)),
-        ]
-      : items
+    replay && reorder && !isOwner ? replay.order.map((x) => items.find((i) => i.id === x)).filter(Boolean) : items
   const shown = filtering
     ? ordered.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
     : ordered.map((item, i) => ({ item, rank: i + 1 }))
@@ -902,8 +942,12 @@ export default function ListPage() {
   const reorderBanner = replaying && (
     <div className="change-banner reorder-banner" role="status">
       <span>
-        {showOld ? (
+        {replay && replay.landed.length === 0 ? (
           <>This is how it used to be&hellip;</>
+        ) : replay ? (
+          <>
+            Moving {replay.landed.length} of {movedCount}&hellip;
+          </>
         ) : (
           <>
             <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> moved {movedCount} {movedCount === 1 ? 'item' : 'items'}
@@ -914,7 +958,13 @@ export default function ListPage() {
         <button className="text-btn" onClick={() => playReplay()} disabled={showOld}>
           Replay
         </button>
-        <button className="text-btn muted" onClick={() => setReorder(null)}>
+        <button
+          className="text-btn muted"
+          onClick={() => {
+            stopReplay()
+            setReorder(null)
+          }}
+        >
           Hide
         </button>
       </span>
@@ -1139,7 +1189,7 @@ export default function ListPage() {
                         <span className="row-title">
                           {item.title}
                           {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
-                          {reorder && !showOld && reorder.shifts[item.id] && (
+                          {reorder && reorder.shifts[item.id] && (!replay || replay.landed.includes(item.id)) && (
                             <span className={reorder.shifts[item.id] > 0 ? 'move-chip up' : 'move-chip down'}>
                               {reorder.shifts[item.id] > 0 ? '↑' : '↓'}
                               {Math.abs(reorder.shifts[item.id])}

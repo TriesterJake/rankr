@@ -76,3 +76,62 @@ export const pageTopOf = (id) => {
   const el = document.getElementById(id)
   return el ? el.getBoundingClientRect().top + window.scrollY : null
 }
+
+// Reorder replay: slide rows from `before` to where they are now, keeping one row (followId) on screen the whole way.
+// The camera reads the row's real position every frame, so it can never fall behind. It only scrolls once the row
+// nears the top or bottom of the screen, so short moves stay still. Resolves when the slide ends.
+export function slideFollow(before, prefix, { duration = 1200, followId = null, onTop = null } = {}) {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      const followEl = followId ? document.getElementById(prefix + followId) : null
+      const anims = []
+      for (const [id, top] of before) {
+        const el = document.getElementById(prefix + id)
+        if (!el) continue
+        const dy = top - pageTop(el)
+        if (Math.abs(dy) < 1 || reduce) continue
+        const raise = onTop?.has(id)
+        if (raise) {
+          el.style.position = 'relative'
+          el.style.zIndex = '3'
+          el.classList.add('sliding-on-top')
+        }
+        const anim = el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], {
+          duration,
+          easing: 'cubic-bezier(0.45, 0, 0.25, 1)', // gentle start and stop, easy to follow
+        })
+        anims.push(anim)
+        if (raise) {
+          anim.onfinish = anim.oncancel = () => {
+            el.style.zIndex = ''
+            el.style.position = ''
+            el.classList.remove('sliding-on-top')
+          }
+        }
+      }
+
+      // keep the followed row between ~30% from the top (under the header) and the tab bar
+      const keepInView = () => {
+        if (!followEl) return
+        const r = followEl.getBoundingClientRect()
+        const vh = window.innerHeight
+        const topEdge = vh * 0.3
+        const bottomEdge = Math.max(topEdge + r.height, vh - 130)
+        if (r.top < topEdge) window.scrollBy(0, r.top - topEdge)
+        else if (r.bottom > bottomEdge) window.scrollBy(0, r.bottom - bottomEdge)
+      }
+      if (reduce || anims.length === 0) {
+        keepInView()
+        return resolve()
+      }
+      const t0 = performance.now()
+      const frame = (now) => {
+        keepInView()
+        if (now - t0 < duration + 30) requestAnimationFrame(frame)
+        else resolve()
+      }
+      requestAnimationFrame(frame)
+    })
+  })
+}
