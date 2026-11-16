@@ -883,9 +883,9 @@ export default function ListPage() {
       )}
 
       {!isOwner && (
-        <div className="like-row">
+        <div className="like-row friend-like-row">
           {likes !== null && (
-            <LikeButton key={list.id} listId={list.id} userId={user.id} initialLiked={likes.includes(user.id)} initialCount={likes.length} />
+            <LikeButton key={list.id} listId={list.id} userId={user.id} initialLiked={likes.includes(user.id)} initialCount={likes.length} compact />
           )}
           {favs !== null && (
             <FavoriteButton
@@ -895,6 +895,7 @@ export default function ListPage() {
               isFavorite={favs.includes(user.id)}
               other={myFav && myFav.id !== list.id ? myFav : null}
               onChange={onFavoriteChange}
+              compact
             />
           )}
           <span className="spacer" />

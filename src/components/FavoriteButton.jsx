@@ -13,7 +13,8 @@ export function Star({ filled }) {
 
 // Your ONE favorite among a friend's lists. Picking another asks first, then switches.
 // list: { id, title }   other: { id, title } | null (your current favorite of this friend, if it is a different list)
-export default function FavoriteButton({ list, ownerName, isFavorite, other, onChange }) {
+// compact: just the star, for tight rows.
+export default function FavoriteButton({ list, ownerName, isFavorite, other, onChange, compact = false }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -49,7 +50,7 @@ export default function FavoriteButton({ list, ownerName, isFavorite, other, onC
         aria-label={isFavorite ? 'Remove as your favorite' : `Make this your favorite of ${ownerName}'s lists`}
       >
         <Star filled={isFavorite} />
-        <span>{isFavorite ? 'Favorite' : 'Favorite?'}</span>
+        {!compact && <span>{isFavorite ? 'Favorite' : 'Favorite?'}</span>}
       </button>
       <Modal
         open={confirm}

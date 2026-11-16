@@ -2421,3 +2421,17 @@ button.rank-pick {
   font: inherit;
   font-size: 15px;
 }
+
+/* friend's list: like, favorite, Copy and Compare on one line */
+.friend-like-row {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.friend-like-row .like-btn {
+  padding: 0 11px;
+}
+.friend-like-row .btn {
+  white-space: nowrap;
+  padding-left: 12px;
+  padding-right: 12px;
+}

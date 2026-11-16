@@ -11,7 +11,8 @@ export function Heart({ filled }) {
 }
 
 // Heart button for someone else's list. Updates right away, undoes itself if saving fails.
-export default function LikeButton({ listId, userId, initialLiked, initialCount, onChange }) {
+// compact: just the heart and the count (no "Like" word), for tight rows.
+export default function LikeButton({ listId, userId, initialLiked, initialCount, onChange, compact = false }) {
   const toast = useToast()
   const [liked, setLiked] = useState(initialLiked)
   const [count, setCount] = useState(initialCount)
@@ -39,7 +40,7 @@ export default function LikeButton({ listId, userId, initialLiked, initialCount,
   return (
     <button type="button" className={liked ? 'like-btn on' : 'like-btn'} onClick={toggle} aria-pressed={liked} aria-label={liked ? 'Unlike this list' : 'Like this list'}>
       <Heart filled={liked} />
-      <span>{count > 0 ? count : 'Like'}</span>
+      {count > 0 ? <span>{count}</span> : !compact && <span>Like</span>}
     </button>
   )
 }
