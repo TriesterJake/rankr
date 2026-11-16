@@ -9,6 +9,7 @@ import ListForm from '../components/ListForm.jsx'
 import ListReorder from '../components/ListReorder.jsx'
 import { markNewList } from '../newList.js'
 import { useShakeUndo } from '../undo.jsx'
+import { captureRows, playRows } from '../flip.js'
 
 export default function ListsPage() {
   const { user } = useAuth()
@@ -76,7 +77,10 @@ export default function ListsPage() {
   function undo() {
     const prev = history.current.pop()
     setUndoCount(history.current.length)
-    if (prev) handleReorder(prev, false)
+    if (!prev) return
+    const before = captureRows(lists.map((l) => l.id), 'reorder-')
+    handleReorder(prev, false)
+    playRows(before, 'reorder-')
   }
 
   async function handleCreate(values) {

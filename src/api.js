@@ -139,7 +139,7 @@ export const getEditHints = async (listId) => {
   const rows = unwrap(
     await supabase
       .from('notifications')
-      .select('edit_kind, item_count, created_at, read_at')
+      .select('edit_kind, item_count, created_at, read_at, old_order')
       .eq('type', 'edited_list')
       .eq('list_id', listId)
       .order('created_at', { ascending: false })

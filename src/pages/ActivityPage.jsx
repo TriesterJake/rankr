@@ -284,7 +284,7 @@ export default function ActivityPage() {
     }
     const to = targetOf(g)
     if (to) navigate(to)
-    else toast('That list is gone')
+    else if (g.type !== 'announcement') toast('That list is gone') // announcements without a link just sit there
   }
 
   async function remove(g) {

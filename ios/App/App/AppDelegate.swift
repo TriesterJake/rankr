@@ -48,10 +48,42 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 }
 
+// iOS 27 requires the "scene" startup system. The scene loads Main.storyboard (our MainViewController)
+// and passes opened links on to Capacitor, which AppDelegate used to do.
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard scene is UIWindowScene else { return }
+        for context in connectionOptions.urlContexts {
+            _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: context.url, options: [:])
+        }
+        if let activity = connectionOptions.userActivities.first {
+            _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: activity, restorationHandler: { _ in })
+        }
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: context.url, options: [:])
+        }
+    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
+    }
+}
+
 // The app's main screen. Same as Capacitor's, plus shake to undo: a shake tells the page,
 // which shows the classic "Undo Move? Cancel / Undo" box when there is something to undo (src/undo.jsx).
 class MainViewController: CAPBridgeViewController {
     override var canBecomeFirstResponder: Bool { true }
+
+    // Swipe in from the left edge to go back a page, like Safari and the home-screen web app.
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        webView?.allowsBackForwardNavigationGestures = true
+    }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)

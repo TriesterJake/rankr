@@ -9,7 +9,7 @@ function Row({ profile, rank }) {
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined }
   const name = profile.display_name || profile.username
   return (
-    <li ref={setNodeRef} style={style} className={`row friend-reorder-row${isDragging ? ' dragging' : ''}`}>
+    <li ref={setNodeRef} id={`friend-rank-${profile.id}`} style={style} className={`row friend-reorder-row${isDragging ? ' dragging' : ''}`}>
       <div className="row-main">
         <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
         <Avatar profile={profile} size={40} />

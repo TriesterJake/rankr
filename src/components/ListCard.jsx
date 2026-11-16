@@ -99,6 +99,7 @@ export default function ListCard({ list, footer, rank, likeUserId, favorite }) {
             userId={likeUserId}
             initialLiked={likes.some((l) => l.user_id === likeUserId)}
             initialCount={likes.length}
+            compact
           />
           {favorite && (
             <FavoriteButton

@@ -6,6 +6,7 @@ import { acceptFriendRequest, getFriendRanks, getFriendSuggestions, getFriendshi
 import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
 import FriendReorder from '../components/FriendReorder.jsx'
 import { useShakeUndo } from '../undo.jsx'
+import { captureRows, playRows } from '../flip.js'
 
 function PersonRow({ profile, to, action, rank, detail }) {
   const inner = (
@@ -119,7 +120,10 @@ export default function FriendsPage() {
   function undoRanking() {
     const prev = history.current.pop()
     setUndoCount(history.current.length)
-    if (prev) changeOrder(prev, false)
+    if (!prev) return
+    const before = captureRows(order.map((p) => p.id), 'friend-rank-')
+    changeOrder(prev, false)
+    playRows(before, 'friend-rank-')
   }
 
   function changeOrder(next, remember = true) {

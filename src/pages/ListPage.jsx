@@ -21,6 +21,7 @@ import MultiCompareSheet from '../components/MultiCompareSheet.jsx'
 import { inkOn } from '../templates.js'
 import { markNewList } from '../newList.js'
 import { useShakeUndo } from '../undo.jsx'
+import { captureRows, playRows } from '../flip.js'
 import { SpoilerMask, spoilerKey, useSpoilers } from '../spoilers.jsx'
 import { ActionSheet, BlockModal, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
@@ -241,6 +242,8 @@ export default function ListPage() {
   const focusItem = searchParams.get('item')
   const changesParam = searchParams.get('changes')
   const [changeInfo, setChangeInfo] = useState(null) // { ids, summary } from a notification
+  const [reorder, setReorder] = useState(null) // { oldIds, shifts: { id: +2 } } how a friend reordered, from a notification
+  const [showOld, setShowOld] = useState(false) // drawing the list in its old order (before the replay slides it)
   const changesShown = useRef('')
   const focused = useRef(null)
 
@@ -328,13 +331,54 @@ export default function ListPage() {
       const first = items.find((i) => ids.includes(i.id))
       if (first) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`item-${first.id}`)?.scrollIntoView({ block: 'center' })))
     }
-    if (changesParam === 'auto') {
-      // opened from a phone notification: look up what changed
-      getEditHints(id)
-        .then((rows) => apply(changesFromRows(rows)))
-        .catch(() => {})
-    } else apply(changesParam)
+    const wantsOrder = changesParam === 'auto' || parseChanges(changesParam).reordered
+    if (changesParam !== 'auto') apply(changesParam)
+    if (!wantsOrder) return
+    // the order from before the change (opened from the app or a phone notification)
+    getEditHints(id)
+      .then((rows) => {
+        if (changesParam === 'auto') apply(changesFromRows(rows))
+        const withOrder = rows.filter((r) => r.edit_kind === 'reordered' && r.old_order?.length)
+        const oldest = withOrder.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0]
+        if (oldest) startReplay(oldest.old_order)
+      })
+      .catch(() => {})
   }, [changesParam, items, id])
+
+  // ---------- replaying a friend's reorder ----------
+
+  // How far each item moved (+ = up the list), counting only items on both the old and new list.
+  function shiftsFrom(oldIds) {
+    const now = itemsRef.current
+    const nowIds = new Set(now.map((i) => i.id))
+    const oldKept = oldIds.filter((x) => nowIds.has(x))
+    const newKept = now.map((i) => i.id).filter((x) => oldKept.includes(x))
+    const shifts = {}
+    newKept.forEach((x, newIdx) => {
+      const d = oldKept.indexOf(x) - newIdx
+      if (d) shifts[x] = d
+    })
+    return shifts
+  }
+
+  const replayTimer = useRef(null)
+  function startReplay(oldIds) {
+    const shifts = shiftsFrom(oldIds)
+    if (Object.keys(shifts).length === 0) return
+    setReorder({ oldIds, shifts })
+    playReplay()
+  }
+  function playReplay() {
+    clearTimeout(replayTimer.current)
+    setShowOld(true) // draw the old order first...
+    replayTimer.current = setTimeout(() => {
+      // ...then let everything slide to where it is now
+      const before = captureRows(itemsRef.current.map((i) => i.id), 'item-')
+      setShowOld(false)
+      playRows(before, 'item-', null, 900)
+    }, 900)
+  }
+  useEffect(() => () => clearTimeout(replayTimer.current), [])
 
   // ---------- editing actions (owner only) ----------
 
@@ -350,6 +394,7 @@ export default function ListPage() {
     setUndoCount(undoStack.current.length)
     if (!entry) return
     const now = itemsRef.current
+    const before = captureRows(now.map((i) => i.id), 'item-')
     if (entry.kind === 'move') {
       // the old order, keeping anything added since then at the end
       const restored = [
@@ -357,6 +402,7 @@ export default function ListPage() {
         ...now.filter((i) => !entry.before.some((b) => b.id === i.id)),
       ]
       persistOrder(restored)
+      playRows(before, 'item-')
     } else {
       const p = pendingDeletes.current.get(entry.item.id)
       if (!p) return // already deleted for good
@@ -364,6 +410,9 @@ export default function ListPage() {
       const rest = now.filter((i) => i.id !== entry.item.id)
       const at = Math.min(entry.index, rest.length)
       persistOrder([...rest.slice(0, at), entry.item, ...rest.slice(at)])
+      playRows(before, 'item-', entry.item.id)
+      setFlashIds([entry.item.id])
+      setTimeout(() => setFlashIds((cur) => (cur.length === 1 && cur[0] === entry.item.id ? [] : cur)), 1600)
     }
   }
   const lastUndo = undoStack.current[undoStack.current.length - 1]
@@ -793,9 +842,18 @@ export default function ListPage() {
 
   const q = query.trim().toLowerCase()
   const filtering = q.length > 0
+  // during a replay, draw the friend's list in its old order (items added since go at the end)
+  const ordered =
+    showOld && reorder && !isOwner
+      ? [
+          ...reorder.oldIds.map((x) => items.find((i) => i.id === x)).filter(Boolean),
+          ...items.filter((i) => !reorder.oldIds.includes(i.id)),
+        ]
+      : items
   const shown = filtering
-    ? items.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
-    : items.map((item, i) => ({ item, rank: i + 1 }))
+    ? ordered.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
+    : ordered.map((item, i) => ({ item, rank: i + 1 }))
+  const movedCount = reorder ? Object.keys(reorder.shifts).length : 0
 
   // spoiler topics used on this list (owner: suggestions; friends: the "I've seen it" checkboxes)
   const spoilerTopics = [...new Map(items.filter((i) => i.spoiler).map((i) => [spoilerKey(i.spoiler), i.spoiler.trim()])).values()]
@@ -914,6 +972,28 @@ export default function ListPage() {
         </div>
       )}
 
+      {reorder && movedCount > 0 && !isOwner && (
+        <div className="change-banner reorder-banner" role="status">
+          <span>
+            {showOld ? (
+              <>This is how it used to be&hellip;</>
+            ) : (
+              <>
+                <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> moved {movedCount} {movedCount === 1 ? 'item' : 'items'}
+              </>
+            )}
+          </span>
+          <span className="btn-row">
+            <button className="text-btn" onClick={playReplay} disabled={showOld}>
+              Replay
+            </button>
+            <button className="text-btn muted" onClick={() => setReorder(null)}>
+              Hide
+            </button>
+          </span>
+        </div>
+      )}
+
       {changeInfo && changeInfo.summary && (
         <div className="change-banner" role="status">
           <span>
@@ -1014,6 +1094,12 @@ export default function ListPage() {
                         <span className="row-title">
                           {item.title}
                           {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
+                          {reorder && !showOld && reorder.shifts[item.id] && (
+                            <span className={reorder.shifts[item.id] > 0 ? 'move-chip up' : 'move-chip down'}>
+                              {reorder.shifts[item.id] > 0 ? '↑' : '↓'}
+                              {Math.abs(reorder.shifts[item.id])}
+                            </span>
+                          )}
                         </span>
                         {item.note && <span className="row-note">{item.note}</span>}
                         {item.place_name && (

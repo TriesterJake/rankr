@@ -495,13 +495,16 @@ button:focus-visible {
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
-  max-width: calc(100% - 28px);
-  padding: 10px 16px;
-  border-radius: 999px;
+  width: max-content;
+  max-width: min(420px, calc(100% - 32px));
+  padding: 12px 20px;
+  border-radius: 18px;
   background: var(--text);
   color: var(--bg);
   font-weight: 650;
   font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -2434,4 +2437,28 @@ button.rank-pick {
   white-space: nowrap;
   padding-left: 12px;
   padding-right: 12px;
+}
+
+/* ---------- Replaying a friend's reorder ---------- */
+
+.reorder-banner {
+  align-items: center;
+}
+.move-chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  vertical-align: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.move-chip.up {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 15%, var(--surface-2));
+}
+.move-chip.down {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 13%, var(--surface-2));
 }

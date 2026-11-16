@@ -76,7 +76,7 @@ a small Edge Function for push), hosted on Vercel.
    already has a table with that name, don't run the schema there.)
 2. Open **SQL Editor -> New query**, paste all of `supabase/schema.sql`, and click **Run**.
    This creates the tables, the friend-only visibility rules, the notification triggers, and the security
-   policies. `schema.sql` already includes every update (`update-2.sql` to `update-20.sql`), so a new project
+   policies. `schema.sql` already includes every update (`update-2.sql` to `update-21.sql`), so a new project
    only needs this one file.
 3. Go to **Project Settings -> API** (or the **Connect** button) and copy the **Project URL** and the
    **anon / publishable key**.
