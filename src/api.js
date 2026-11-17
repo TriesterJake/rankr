@@ -139,7 +139,7 @@ export const getEditHints = async (listId) => {
   const rows = unwrap(
     await supabase
       .from('notifications')
-      .select('edit_kind, item_count, created_at, read_at, old_order')
+      .select('edit_kind, item_count, created_at, read_at, old_order, order_steps')
       .eq('type', 'edited_list')
       .eq('list_id', listId)
       .order('created_at', { ascending: false })
@@ -148,6 +148,12 @@ export const getEditHints = async (listId) => {
   const unread = rows.filter((r) => !r.read_at)
   if (unread.length) return unread
   return rows.filter((r) => Date.now() - new Date(r.created_at).getTime() < 60 * 60 * 1000)
+}
+
+// You opened a friend's list and saw its order: their next reorder replay starts from here.
+export const sawListOrder = async (listId) => {
+  const { error } = await supabase.rpc('saw_list_order', { p_list: listId })
+  if (error) throw error
 }
 
 export const getUnreadCount = async () => {

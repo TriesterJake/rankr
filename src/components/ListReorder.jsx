@@ -3,7 +3,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { imageUrl } from '../images.js'
+import { thumbUrl } from '../images.js'
 import { inkOn } from '../templates.js'
 import { Modal } from './ui.jsx'
 
@@ -33,7 +33,7 @@ function ReorderRow({ list, rank, highlight, onPickRank }) {
           {rank}
         </button>
         <span className="list-card-icon small">
-          {list.icon_path ? <img src={imageUrl(list.icon_path)} alt="" /> : list.icon || list.title.charAt(0).toUpperCase()}
+          {list.icon_path ? <img src={thumbUrl(list.icon_path)} alt="" /> : list.icon || list.title.charAt(0).toUpperCase()}
         </span>
         <span className="row-text static">
           <span className="row-title">

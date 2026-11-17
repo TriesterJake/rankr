@@ -8,9 +8,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { changeSummary, changesParam as changesFromRows, parseChanges, pickChanged } from '../changeHighlights.js'
-import { addItems, copyItems, createList, deleteItem, deleteList, getEditHints, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, updateItem, updateList } from '../api.js'
+import { addItems, copyItems, createList, deleteItem, deleteList, getEditHints, getFavoriters, getLikers, getListFull, getListsByOwner, getMyFavorite, getReactors, reactToItem, reorderItems, sawListOrder, updateItem, updateList } from '../api.js'
 import { norm, findSimilarItem } from '../compare.js'
-import { imageUrl, removeImages, resizeImage, uploadAudio, uploadItemImage } from '../images.js'
+import { imageUrl, removeImages, resizeImage, thumbUrl, uploadAudio, uploadItemImage } from '../images.js'
 import { VoiceMemoField, VoicePlay } from '../components/VoiceMemo.jsx'
 import { PlaceChip, PlaceField } from '../components/Place.jsx'
 import { Avatar, Empty, Modal, SearchBox, Sheet, Spinner, TopBar } from '../components/ui.jsx'
@@ -62,7 +62,7 @@ function EditPanel({ item, rank, total, topics, photoBusy, audioBusy, onPhoto, o
       <div className="field">
         <span className="label">Photo (optional)</span>
         <div className="photo-row">
-          {item.image_path && <img className="photo-thumb" src={imageUrl(item.image_path)} alt="" />}
+          {item.image_path && <img className="photo-thumb" src={thumbUrl(item.image_path)} alt="" />}
           <label className={photoBusy ? 'btn small disabled' : 'btn small'}>
             {photoBusy ? 'Uploading...' : item.image_path ? 'Change photo' : 'Add photo'}
             <input
@@ -150,7 +150,7 @@ function SortableRow({ item, rank, total, topics, editing, flash, filtering, pho
         </button>
         {item.image_path && (
           <button className="row-thumb" onClick={() => onView(item)} aria-label={`View photo of ${item.title}`}>
-            <img src={imageUrl(item.image_path)} alt="" loading="lazy" />
+            <img src={thumbUrl(item.image_path)} alt="" loading="lazy" />
           </button>
         )}
         <button className="row-text" onClick={onToggle}>
@@ -347,32 +347,38 @@ function ListView() {
     getEditHints(id)
       .then((rows) => {
         if (changesParam === 'auto') apply(changesFromRows(rows))
-        // Each reorder notification holds the order from before its first move, and later moves merge into it.
-        // Unread ones: start from the oldest, so every move you haven't seen plays. All read (tapping the notification
-        // marks it read): only the newest, the one you just tapped. Older ones you already watched.
-        const byTime = rows
+        // Reorder notifications keep the order before every move since you last opened this list (oldest first).
+        // Older notifications that were never updated with each move's order fall back to just the first order.
+        const saved = rows
           .filter((r) => r.edit_kind === 'reordered' && r.old_order?.length)
           .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-        const unread = byTime.filter((r) => !r.read_at)
-        const pick = unread.length ? unread[0] : byTime[byTime.length - 1]
-        if (pick) startReplay(pick.old_order)
+          .flatMap((r) => (Array.isArray(r.order_steps) && r.order_steps.length ? r.order_steps : [r.old_order]))
+        startReplay(saved)
+        // you've now seen the current order: the next replay starts from here
+        sawListOrder(id).catch(() => {})
       })
       .catch(() => {})
   }, [changesParam, items, id])
 
+  // Opening a friend's list (not from a reorder notification) shows you its current order,
+  // so a later reorder replay should start from what you see now. (From a notification, that happens after the replay is loaded.)
+  const listLoaded = Boolean(list)
+  useEffect(() => {
+    if (!listLoaded || isOwner) return
+    const fromReorder = changesParam === 'auto' || (changesParam && parseChanges(changesParam).reordered)
+    if (!fromReorder) sawListOrder(id).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listLoaded, isOwner, id])
+
   // ---------- replaying a friend's reorder ----------
 
-  // Which items were really moved, and by how much (+ = up the list). Moving #2 to #10 also shifts #3-#10 up by one,
-  // but only #2 was moved: the rest kept their order relative to each other. So the items that kept their relative
-  // order (the longest run still in the old order) count as "pushed", and everything else as "moved".
-  function shiftsFrom(oldIds) {
-    const now = itemsRef.current
-    const nowIds = new Set(now.map((i) => i.id))
-    const oldKept = oldIds.filter((x) => nowIds.has(x))
-    const oldPos = new Map(oldKept.map((x, i) => [x, i]))
-    const newKept = now.map((i) => i.id).filter((x) => oldPos.has(x))
-    const seq = newKept.map((x) => oldPos.get(x))
-
+  // Which items were really moved between two orders, and by how much (+ = up the list). Moving #2 to #10 also shifts
+  // #3-#10 up by one, but only #2 was moved: the rest kept their order relative to each other. So the items that kept
+  // their relative order (the longest run still in the old order) count as "pushed", and everything else as "moved".
+  function movedBetween(fromIds, toIds) {
+    const pos = new Map(fromIds.map((x, i) => [x, i]))
+    const kept = toIds.filter((x) => pos.has(x))
+    const seq = kept.map((x) => pos.get(x))
     // longest increasing run of old positions, read in the new order
     const tails = [] // index into seq of the smallest tail for each length
     const prev = new Array(seq.length).fill(-1)
@@ -388,33 +394,38 @@ function ListView() {
       tails[lo] = i
     })
     const stayed = new Set()
-    for (let i = tails[tails.length - 1] ?? -1; i >= 0; i = prev[i]) stayed.add(newKept[i])
-
+    for (let i = tails[tails.length - 1] ?? -1; i >= 0; i = prev[i]) stayed.add(kept[i])
     const shifts = {}
-    newKept.forEach((x, newIdx) => {
-      if (!stayed.has(x)) shifts[x] = oldPos.get(x) - newIdx
+    kept.forEach((x, i) => {
+      if (!stayed.has(x)) shifts[x] = pos.get(x) - i
     })
     return shifts
   }
 
-  // One step per moved item, so each move can be watched on its own (the camera can only follow one item at a time).
-  // Starting from the old order, each moved item in turn jumps to its final spot among the items already settled.
-  function replaySteps(oldIds, shifts) {
-    const finalIds = itemsRef.current.map((i) => i.id)
-    const finalSet = new Set(finalIds)
-    let order = [...oldIds.filter((x) => finalSet.has(x)), ...finalIds.filter((x) => !oldIds.includes(x))]
-    const settled = new Set(finalIds.filter((x) => !(x in shifts)))
-    // top to bottom, in the old order
-    const movers = order.filter((x) => x in shifts)
+  // An order saved earlier, fitted to the list as it is now: deleted items dropped, items added since at the end.
+  function fitOrder(ids) {
+    const now = itemsRef.current.map((i) => i.id)
+    const nowSet = new Set(now)
+    const kept = ids.filter((x) => nowSet.has(x))
+    const keptSet = new Set(kept)
+    return [...kept, ...now.filter((x) => !keptSet.has(x))]
+  }
+
+  // The steps from one order to the next, one moved item at a time (the camera can only follow one item at once).
+  // Each moved item in turn jumps to its spot among the items already settled.
+  function replaySteps(fromIds, toIds) {
+    const shifts = movedBetween(fromIds, toIds)
+    let order = [...fromIds]
+    const settled = new Set(toIds.filter((x) => !(x in shifts)))
     const steps = []
-    for (const m of movers) {
+    for (const m of fromIds.filter((x) => x in shifts)) {
       const before = order.indexOf(m)
       order = order.filter((x) => x !== m)
-      const fi = finalIds.indexOf(m)
+      const ti = toIds.indexOf(m)
       let at = 0
-      for (let k = fi - 1; k >= 0; k--) {
-        if (settled.has(finalIds[k])) {
-          at = order.indexOf(finalIds[k]) + 1
+      for (let k = ti - 1; k >= 0; k--) {
+        if (settled.has(toIds[k])) {
+          at = order.indexOf(toIds[k]) + 1
           break
         }
       }
@@ -430,15 +441,20 @@ function ListView() {
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()))
   const replayedFor = useRef('')
   const [orderShown, setOrderShown] = useState(false) // the replay showed the new order, so "the order changed" isn't news (even after Hide)
-  function startReplay(oldIds) {
-    const key = oldIds.join()
-    if (replayedFor.current === key) return
+
+  // savedOrders: the order before each move the friend made, oldest first. The replay plays each of those moves,
+  // then the arrows show the overall change (from the first order to now).
+  function startReplay(savedOrders) {
+    const key = savedOrders.map((o) => o.join()).join('|')
+    if (!savedOrders.length || replayedFor.current === key) return
     replayedFor.current = key
-    const shifts = shiftsFrom(oldIds)
-    if (Object.keys(shifts).length === 0) return
-    setReorder({ oldIds, shifts })
+    const now = itemsRef.current.map((i) => i.id)
+    const orders = [...savedOrders.map(fitOrder), now].filter((o, i, all) => i === 0 || o.join() !== all[i - 1].join())
+    const shifts = movedBetween(orders[0], now)
+    if (orders.length < 2) return
+    setReorder({ orders, shifts })
     setOrderShown(true)
-    playReplay({ oldIds, shifts })
+    playReplay({ orders, shifts })
   }
   function stopReplay() {
     replayRun.current++
@@ -448,19 +464,17 @@ function ListView() {
   async function playReplay(r = reorder) {
     if (!r) return
     const run = ++replayRun.current
-    const steps = replaySteps(r.oldIds, r.shifts)
+    const steps = r.orders.slice(1).flatMap((to, i) => replaySteps(r.orders[i], to))
     if (steps.length === 0) return
-    const finalSet = new Set(itemsRef.current.map((i) => i.id))
-    const startOrder = [...r.oldIds.filter((x) => finalSet.has(x)), ...itemsRef.current.map((i) => i.id).filter((x) => !r.oldIds.includes(x))]
 
     // 1. draw the old order, with the first moved item a third of the way down the screen
-    flushSync(() => setReplay({ order: startOrder, landed: [] }))
+    flushSync(() => setReplay({ order: r.orders[0], landed: [], step: 0, steps: steps.length }))
     await nextFrame()
     const firstTop = pageTopOf(`item-${steps[0].id}`)
     if (firstTop != null) glideTo(firstTop - window.innerHeight * 0.35, 400)
     await wait(1100)
 
-    // 2. move the items one at a time; longer moves take longer so they stay easy to follow
+    // 2. play the moves one at a time; longer moves take longer so they stay easy to follow
     const landed = []
     for (let i = 0; i < steps.length; i++) {
       if (run !== replayRun.current) return
@@ -473,13 +487,13 @@ function ListView() {
         if (y != null && (y < vh * 0.3 || y > vh - 160)) {
           glideTo(top - vh * 0.35, 500)
           await wait(650)
-        } else await wait(250)
+        } else await wait(350)
         if (run !== replayRun.current) return
       }
       const before = captureRows(itemsRef.current.map((x) => x.id), 'item-')
-      landed.push(step.id)
+      if (!landed.includes(step.id)) landed.push(step.id)
       // draw the new order now (not on React's own schedule), so the slide measures the new spots
-      flushSync(() => setReplay({ order: step.order, landed: [...landed] }))
+      flushSync(() => setReplay({ order: step.order, landed: [...landed], step: i + 1, steps: steps.length }))
       const duration = Math.min(3600, 900 + step.distance * 55)
       await slideFollow(before, 'item-', { duration, followId: step.id, onTop: new Set([step.id]) })
     }
@@ -956,7 +970,7 @@ function ListView() {
     ? ordered.map((item, i) => ({ item, rank: i + 1 })).filter(({ item }) => `${item.title} ${item.note || ''}`.toLowerCase().includes(q))
     : ordered.map((item, i) => ({ item, rank: i + 1 }))
   const movedCount = reorder ? Object.keys(reorder.shifts).length : 0
-  const replaying = Boolean(reorder && movedCount > 0 && !isOwner)
+  const replaying = Boolean(reorder && !isOwner)
   // "3 new items, the order changed": the replay already showed the order, so leave that part out (also after Hide)
   const changeSummaryText = changeInfo?.changes ? changeSummary({ ...changeInfo.changes, reordered: replaying || orderShown ? 0 : changeInfo.changes.reordered }) : ''
   const reorderBanner = replaying && (
@@ -966,11 +980,12 @@ function ListView() {
           <>This is how it used to be&hellip;</>
         ) : replay ? (
           <>
-            Moving {replay.landed.length} of {movedCount}&hellip;
+            Move {replay.step} of {replay.steps}&hellip;
           </>
         ) : (
           <>
-            <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b> moved {movedCount} {movedCount === 1 ? 'item' : 'items'}
+            <b>{list.owner?.display_name || list.owner?.username || 'Your friend'}</b>{' '}
+            {movedCount > 0 ? `moved ${movedCount} ${movedCount === 1 ? 'item' : 'items'}` : 'moved things around, then put them back'}
           </>
         )}
       </span>
@@ -1197,7 +1212,7 @@ function ListView() {
                     <span className={`rank rank-${rank <= 3 ? rank : 'n'}`}>{rank}</span>
                     {item.image_path && !covered && (
                       <button className="row-thumb" onClick={() => setViewing(item)} aria-label={`View photo of ${item.title}`}>
-                        <img src={imageUrl(item.image_path)} alt="" loading="lazy" />
+                        <img src={thumbUrl(item.image_path)} alt="" loading="lazy" />
                       </button>
                     )}
                     {covered ? (

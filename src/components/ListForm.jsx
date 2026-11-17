@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
-import { imageUrl, removeImages, resizeImage, uploadItemImage } from '../images.js'
+import { removeImages, resizeImage, thumbUrl, uploadItemImage } from '../images.js'
 import { COLORS, TEMPLATES, randomColor, inkOn } from '../templates.js'
 
 // Used both to create a list and to edit its settings.
@@ -111,7 +111,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
         <div className="photo-row">
           {iconPath && (
             <span className="icon-preview" style={{ background: color, color: inkOn(color) }}>
-              <img src={imageUrl(iconPath)} alt="" />
+              <img src={thumbUrl(iconPath)} alt="" />
             </span>
           )}
           <label className={photoBusy ? 'btn small disabled' : 'btn small'}>

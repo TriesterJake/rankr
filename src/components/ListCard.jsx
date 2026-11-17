@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { topItems } from '../api.js'
 import { inkOn } from '../templates.js'
-import { imageUrl } from '../images.js'
+import { imageUrl, thumbUrl } from '../images.js'
 import { Lightbox } from './ui.jsx'
 import LikeButton, { Heart } from './LikeButton.jsx'
 import FavoriteButton, { Star } from './FavoriteButton.jsx'
@@ -43,7 +43,7 @@ export default function ListCard({ list, footer, rank, likeUserId, favorite }) {
               }
             }}
           >
-            <img src={imageUrl(list.icon_path)} alt="" loading="lazy" />
+            <img src={thumbUrl(list.icon_path)} alt="" loading="lazy" />
           </div>
         ) : (
           <div className="list-card-icon">{list.icon || list.title.charAt(0).toUpperCase()}</div>

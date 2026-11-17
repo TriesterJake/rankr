@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { imageUrl } from '../images.js'
+import { imageUrl, thumbUrl } from '../images.js'
 
 const AVATAR_COLORS = ['#7c5cff', '#ff5c8a', '#ff9f43', '#5ac86a', '#2ec4b6', '#4dabf7', '#ef476f']
 
@@ -36,7 +36,7 @@ export function Avatar({ profile, size = 40, zoom = false }) {
       }}
       aria-hidden={canZoom ? undefined : 'true'}
     >
-      {profile?.avatar_path ? <img src={imageUrl(profile.avatar_path)} alt="" loading="lazy" /> : name.trim().charAt(0).toUpperCase()}
+      {profile?.avatar_path ? <img src={thumbUrl(profile.avatar_path)} alt="" loading="lazy" /> : name.trim().charAt(0).toUpperCase()}
     </div>
   )
   if (!canZoom) return circle

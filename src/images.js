@@ -4,6 +4,13 @@ const BUCKET = 'item-images'
 
 export const imageUrl = (path) => (path ? supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl : null)
 
+// Photos uploaded since thumbnails were added come in pairs: "<id>.f.jpg" (full size) and "<id>.t.jpg" (small).
+// The name says whether a small one exists, so older photos (plain "<id>.jpg") just keep using the full image.
+const thumbPathOf = (path) => (path && path.endsWith('.f.jpg') ? path.slice(0, -'.f.jpg'.length) + '.t.jpg' : null)
+
+// For the small spots (row pictures, list icons, profile circles). Tapping to zoom still uses imageUrl().
+export const thumbUrl = (path) => imageUrl(thumbPathOf(path) || path)
+
 // Shrink a photo before uploading (phone photos are huge). Returns a JPEG Blob.
 export async function resizeImage(file, maxSize = 1280, quality = 0.82, square = false) {
   let source
@@ -50,17 +57,42 @@ export async function resizeImage(file, maxSize = 1280, quality = 0.82, square =
   return blob
 }
 
-// Upload into the person's own folder; returns the stored path.
+const THUMB_SIZE = 256 // the biggest small spot is 64 points, which is 192 pixels on an iPhone screen
+
+const put = (path, blob) => supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' })
+
+// Upload into the person's own folder, with a small copy next to it; returns the stored path (of the full one).
 export async function uploadItemImage(userId, blob) {
-  const path = `${userId}/${crypto.randomUUID()}.jpg`
-  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' })
-  if (error) throw error
-  return path
+  const id = `${userId}/${crypto.randomUUID()}`
+  let thumb = null
+  try {
+    thumb = await resizeImage(blob, THUMB_SIZE, 0.78)
+  } catch {
+    /* no small copy: upload the full one the old way */
+  }
+  if (!thumb) {
+    const { error } = await put(`${id}.jpg`, blob)
+    if (error) throw error
+    return `${id}.jpg`
+  }
+  // small copy first, so a full photo never exists without it
+  const t = await put(`${id}.t.jpg`, thumb)
+  if (t.error) {
+    const { error } = await put(`${id}.jpg`, blob)
+    if (error) throw error
+    return `${id}.jpg`
+  }
+  const { error } = await put(`${id}.f.jpg`, blob)
+  if (error) {
+    removeImages([`${id}.t.jpg`])
+    throw error
+  }
+  return `${id}.f.jpg`
 }
 
 // Best effort: a leftover file is harmless, so failures are ignored.
 export async function removeImages(paths) {
-  const list = paths.filter(Boolean)
+  const list = paths.filter(Boolean).flatMap((p) => [p, thumbPathOf(p)].filter(Boolean)) // a photo's small copy goes too
   if (!list.length) return
   try {
     await supabase.storage.from(BUCKET).remove(list)
