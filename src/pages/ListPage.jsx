@@ -203,7 +203,13 @@ function SortableRow({ item, rank, total, topics, editing, flash, filtering, pho
   )
 }
 
+// A fresh page for each list, so a replay or banner never carries over when you go straight from one list to another.
 export default function ListPage() {
+  const { id } = useParams()
+  return <ListView key={id} />
+}
+
+function ListView() {
   const { id } = useParams()
   const { user } = useAuth()
   const toast = useToast()
@@ -341,9 +347,15 @@ export default function ListPage() {
     getEditHints(id)
       .then((rows) => {
         if (changesParam === 'auto') apply(changesFromRows(rows))
-        const withOrder = rows.filter((r) => r.edit_kind === 'reordered' && r.old_order?.length)
-        const oldest = withOrder.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0]
-        if (oldest) startReplay(oldest.old_order)
+        // Each reorder notification holds the order from before its first move, and later moves merge into it.
+        // Unread ones: start from the oldest, so every move you haven't seen plays. All read (tapping the notification
+        // marks it read): only the newest, the one you just tapped. Older ones you already watched.
+        const byTime = rows
+          .filter((r) => r.edit_kind === 'reordered' && r.old_order?.length)
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        const unread = byTime.filter((r) => !r.read_at)
+        const pick = unread.length ? unread[0] : byTime[byTime.length - 1]
+        if (pick) startReplay(pick.old_order)
       })
       .catch(() => {})
   }, [changesParam, items, id])
@@ -417,6 +429,7 @@ export default function ListPage() {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms))
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()))
   const replayedFor = useRef('')
+  const [orderShown, setOrderShown] = useState(false) // the replay showed the new order, so "the order changed" isn't news (even after Hide)
   function startReplay(oldIds) {
     const key = oldIds.join()
     if (replayedFor.current === key) return
@@ -424,6 +437,7 @@ export default function ListPage() {
     const shifts = shiftsFrom(oldIds)
     if (Object.keys(shifts).length === 0) return
     setReorder({ oldIds, shifts })
+    setOrderShown(true)
     playReplay({ oldIds, shifts })
   }
   function stopReplay() {
@@ -943,8 +957,8 @@ export default function ListPage() {
     : ordered.map((item, i) => ({ item, rank: i + 1 }))
   const movedCount = reorder ? Object.keys(reorder.shifts).length : 0
   const replaying = Boolean(reorder && movedCount > 0 && !isOwner)
-  // "3 new items, the order changed": the replay already shows the order, so leave that part out then
-  const changeSummaryText = changeInfo?.changes ? changeSummary({ ...changeInfo.changes, reordered: replaying ? 0 : changeInfo.changes.reordered }) : ''
+  // "3 new items, the order changed": the replay already showed the order, so leave that part out (also after Hide)
+  const changeSummaryText = changeInfo?.changes ? changeSummary({ ...changeInfo.changes, reordered: replaying || orderShown ? 0 : changeInfo.changes.reordered }) : ''
   const reorderBanner = replaying && (
     <div className="change-banner reorder-banner" role="status">
       <span>
@@ -1195,7 +1209,7 @@ export default function ListPage() {
                         <span className="row-title">
                           {item.title}
                           {changeInfo?.ids.includes(item.id) && <span className="change-chip">{changeInfo.labels[item.id]}</span>}
-                          {reorder && reorder.shifts[item.id] && (!replay || replay.landed.includes(item.id)) && (
+                          {reorder && Boolean(reorder.shifts[item.id]) && (!replay || replay.landed.includes(item.id)) && (
                             <span className={reorder.shifts[item.id] > 0 ? 'move-chip up' : 'move-chip down'}>
                               {reorder.shifts[item.id] > 0 ? '↑' : '↓'}
                               {Math.abs(reorder.shifts[item.id])}
