@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
@@ -415,7 +416,11 @@ export default function ListPage() {
   const replayRun = useRef(0) // bumps to cancel a replay that is playing
   const wait = (ms) => new Promise((r) => setTimeout(r, ms))
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()))
+  const replayedFor = useRef('')
   function startReplay(oldIds) {
+    const key = oldIds.join()
+    if (replayedFor.current === key) return
+    replayedFor.current = key
     const shifts = shiftsFrom(oldIds)
     if (Object.keys(shifts).length === 0) return
     setReorder({ oldIds, shifts })
@@ -435,7 +440,7 @@ export default function ListPage() {
     const startOrder = [...r.oldIds.filter((x) => finalSet.has(x)), ...itemsRef.current.map((i) => i.id).filter((x) => !r.oldIds.includes(x))]
 
     // 1. draw the old order, with the first moved item a third of the way down the screen
-    setReplay({ order: startOrder, landed: [] })
+    flushSync(() => setReplay({ order: startOrder, landed: [] }))
     await nextFrame()
     const firstTop = pageTopOf(`item-${steps[0].id}`)
     if (firstTop != null) glideTo(firstTop - window.innerHeight * 0.35, 400)
@@ -459,7 +464,8 @@ export default function ListPage() {
       }
       const before = captureRows(itemsRef.current.map((x) => x.id), 'item-')
       landed.push(step.id)
-      setReplay({ order: step.order, landed: [...landed] })
+      // draw the new order now (not on React's own schedule), so the slide measures the new spots
+      flushSync(() => setReplay({ order: step.order, landed: [...landed] }))
       const duration = Math.min(3600, 900 + step.distance * 55)
       await slideFollow(before, 'item-', { duration, followId: step.id, onTop: new Set([step.id]) })
     }

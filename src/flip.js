@@ -80,9 +80,10 @@ export const pageTopOf = (id) => {
 // Reorder replay: slide rows from `before` to where they are now, keeping one row (followId) on screen the whole way.
 // The camera reads the row's real position every frame, so it can never fall behind. It only scrolls once the row
 // nears the top or bottom of the screen, so short moves stay still. Resolves when the slide ends.
+// Call it right after the new order is on the page (the caller uses flushSync), so it measures the new spots.
 export function slideFollow(before, prefix, { duration = 1200, followId = null, onTop = null } = {}) {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => {
+    {
       const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       const followEl = followId ? document.getElementById(prefix + followId) : null
       const anims = []
@@ -132,6 +133,6 @@ export function slideFollow(before, prefix, { duration = 1200, followId = null, 
         else resolve()
       }
       requestAnimationFrame(frame)
-    })
+    }
   })
 }
