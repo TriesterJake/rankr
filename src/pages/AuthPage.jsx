@@ -4,6 +4,37 @@ import { supabase, configured } from '../supabase.js'
 import { acceptTerms, deleteMyAccount, isClean, usernameAvailable } from '../api.js'
 import { LegalLinks, LegalSheet } from './LegalPage.jsx'
 
+// A password box with an eye button to show or hide what you typed.
+function PasswordInput(props) {
+  const [show, setShow] = useState(false)
+  return (
+    <span className="password-box">
+      <input {...props} type={show ? 'text' : 'password'} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+      <button
+        type="button"
+        className="password-eye"
+        onClick={() => setShow((v) => !v)}
+        aria-label={show ? 'Hide password' : 'Show password'}
+        aria-pressed={show}
+      >
+        {show ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+            <line x1="1" y1="1" x2="23" y2="23" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        )}
+      </button>
+    </span>
+  )
+}
+
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/
 const MIN_AGE = 13
 
@@ -177,7 +208,7 @@ export function ResetPassword({ onDone }) {
         <h2>Choose a new password</h2>
         <label className="field">
           <span className="label">New password</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
+          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
         </label>
         {error && <p className="error">{error}</p>}
         <button className="btn primary block" disabled={busy}>
@@ -358,8 +389,7 @@ export default function AuthPage() {
         {mode !== 'forgot' && mode !== 'verify' && mode !== 'resetcode' && (
           <label className="field">
             <span className="label">Password</span>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
