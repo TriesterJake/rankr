@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useOnline } from '../online.js'
 import { useNavigate } from 'react-router-dom'
 import { imageUrl, thumbUrl } from '../images.js'
 
@@ -107,6 +108,31 @@ export function Empty({ title, children }) {
     <div className="empty">
       <h3>{title}</h3>
       {children && <p>{children}</p>}
+    </div>
+  )
+}
+
+// Instead of an empty page when loading failed: says why, with a way to try again.
+export function LoadFailed({ what, onRetry }) {
+  const online = useOnline()
+  return (
+    <div className="empty load-failed" role="alert">
+      <h3>{online ? `Couldn’t load ${what}` : 'You’re offline'}</h3>
+      <p>{online ? 'Check your connection and try again.' : 'Connect to Wi-Fi or cellular data. RankR will load again on its own.'}</p>
+      <button className="btn" onClick={onRetry}>
+        Try again
+      </button>
+    </div>
+  )
+}
+
+// A slim bar at the top while the phone has no connection.
+export function OfflineBar() {
+  const online = useOnline()
+  if (online) return null
+  return (
+    <div className="offline-bar" role="status">
+      You’re offline. Changes won’t save until you reconnect.
     </div>
   )
 }

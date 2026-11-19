@@ -14,7 +14,8 @@ import {
 } from '../api.js'
 import { changesParam, describeEdit, groupNotifications, nameList } from '../activityGroups.js'
 import { clearDeliveredNotifications, disablePush, enablePush, getPushStatus } from '../push.js'
-import { Avatar, Empty, Modal, Spinner, TopBar } from '../components/ui.jsx'
+import { Avatar, Empty, LoadFailed, Modal, Spinner, TopBar } from '../components/ui.jsx'
+import { isOffline, useReloadOnReconnect } from '../online.js'
 
 const GLYPH = { new_list: '📝', edited_list: '✏️', liked: '❤️', favorited: '⭐', friend_accepted: '🤝', announcement: '📣' }
 
@@ -201,8 +202,11 @@ export default function ActivityPage() {
   const pickedTab = useRef(false)
   const lastLoad = useRef(0)
 
+  const [failed, setFailed] = useState(false)
   const load = useCallback(async () => {
     lastLoad.current = Date.now()
+    setFailed(false)
+    if (isOffline()) return setFailed(true)
     try {
       const rows = await getNotifications()
       // rows stay highlighted as "new" for this visit, but everything is marked read for real right away
@@ -213,8 +217,8 @@ export default function ActivityPage() {
       if (rows.some((r) => r.type !== 'friend_request' && !r.read_at)) markAllNotificationsRead().catch(() => {})
       clearDeliveredNotifications()
     } catch {
-      toast('Could not load your notifications')
-      setItems([])
+      setFailed(true)
+      return
     }
     try {
       setFriendships(await getFriendships(user.id, true))
@@ -222,6 +226,7 @@ export default function ActivityPage() {
       setFriendships([])
     }
   }, [setUnread, refreshUnread, toast, user.id])
+  useReloadOnReconnect(load)
 
   useEffect(() => {
     load()
@@ -360,7 +365,7 @@ export default function ActivityPage() {
         </button>
       </div>
 
-      {loading && <Spinner />}
+      {loading && (failed && items === null ? <LoadFailed what="your activity" onRetry={load} /> : <Spinner />)}
 
       {!loading && tab === 'requests' && (
         <>

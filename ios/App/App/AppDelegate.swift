@@ -83,6 +83,16 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         webView?.allowsBackForwardNavigationGestures = true
+        // Behind the keyboard (the app shrinks to end at it): the app's own background, in light or dark mode,
+        // so the see-through keyboard looks right in both.
+        let appBackground = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0x0d / 255, green: 0x0e / 255, blue: 0x12 / 255, alpha: 1) // --bg, dark
+                : UIColor(red: 0xf3 / 255, green: 0xf3 / 255, blue: 0xf7 / 255, alpha: 1) // --bg, light
+        }
+        view.backgroundColor = appBackground
+        webView?.backgroundColor = appBackground
+        webView?.scrollView.backgroundColor = appBackground
     }
 
     override func viewDidAppear(_ animated: Bool) {

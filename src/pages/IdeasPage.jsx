@@ -5,7 +5,8 @@ import { useToast } from '../toast.jsx'
 import { createList, getHiddenIdeas, getListIdeas, getListsByOwner, hideIdea, localDay } from '../api.js'
 import { TEMPLATES, randomColor } from '../templates.js'
 import { markNewList } from '../newList.js'
-import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import { Avatar, Empty, LoadFailed, Spinner, TopBar } from '../components/ui.jsx'
+import { isOffline, useReloadOnReconnect } from '../online.js'
 import { ActionSheet, MoreButton, ReportSheet } from '../components/Safety.jsx'
 
 const IDEA_COUNT = 10 // keep in step with p_limit in getListIdeas (api.js)
@@ -61,7 +62,10 @@ export default function IdeasPage() {
   const [reporting, setReporting] = useState(null)
   const loadedDay = useRef('')
 
+  const [failed, setFailed] = useState(false)
   const load = useCallback(async () => {
+    setFailed(false)
+    if (isOffline()) return setFailed(true)
     try {
       const [rows, mine, hidden] = await Promise.all([getListIdeas(), getListsByOwner(user.id), getHiddenIdeas().catch(() => [])])
       loadedDay.current = localDay()
@@ -72,10 +76,10 @@ export default function IdeasPage() {
         .map((t) => ({ title: t, friends: [], others: 0, starter: true }))
       setIdeas([...rows, ...starters])
     } catch {
-      toast('Could not load ideas')
-      setIdeas([])
+      setFailed(true)
     }
-  }, [user.id, toast])
+  }, [user.id])
+  useReloadOnReconnect(load)
 
   useEffect(() => {
     load()
@@ -122,7 +126,7 @@ export default function IdeasPage() {
     <>
       <TopBar title="Ideas" subtitle="New list ideas every day" />
 
-      {ideas === null && <Spinner />}
+      {ideas === null && (failed ? <LoadFailed what="ideas" onRetry={load} /> : <Spinner />)}
 
       {ideas && ideas.length === 0 && (
         <Empty title="You've made them all">There are no new list ideas right now. Check back tomorrow.</Empty>

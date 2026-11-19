@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Sheet } from './ui.jsx'
+import { isNative, nativePosition } from '../native.js'
 
 // ---------- Finding places (Photon: free OpenStreetMap search, no key needed) ----------
 
@@ -47,6 +48,7 @@ async function nameForPoint(lat, lng) {
 }
 
 function currentPosition() {
+  if (isNative()) return nativePosition()
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('unsupported'))
     navigator.geolocation.getCurrentPosition(

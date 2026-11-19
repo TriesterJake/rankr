@@ -2496,3 +2496,31 @@ button.rank-pick {
 .password-eye[aria-pressed='true'] {
   color: var(--text);
 }
+
+/* offline: a slim bar just above the tabs */
+.offline-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px);
+  z-index: 31;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.load-failed .btn {
+  margin-top: 6px;
+}
+
+/* iPhone app: while the keyboard is up, the page ends at the keyboard; hide the tabs so typing has the room */
+body.keyboard-open .tabbar,
+body.keyboard-open .offline-bar {
+  display: none;
+}

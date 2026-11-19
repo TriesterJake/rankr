@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { acceptFriendRequest, getFriendRanks, getFriendSuggestions, getFriendships, removeFriendship, saveFriendRanks, searchProfiles, sendFriendRequest } from '../api.js'
-import { Avatar, Empty, Spinner, TopBar } from '../components/ui.jsx'
+import { Avatar, Empty, LoadFailed, Spinner, TopBar } from '../components/ui.jsx'
+import { isOffline, useReloadOnReconnect } from '../online.js'
 import FriendReorder from '../components/FriendReorder.jsx'
 import { useShakeUndo } from '../undo.jsx'
 import { captureRows, playRows } from '../flip.js'
@@ -49,7 +50,10 @@ export default function FriendsPage() {
   const history = useRef([]) // earlier friend orders while ranking
   const [undoCount, setUndoCount] = useState(0)
 
+  const [failed, setFailed] = useState(false)
   const load = useCallback(async () => {
+    setFailed(false)
+    if (isOffline()) return setFailed(true)
     try {
       setFriendships(await getFriendships(user.id))
       getFriendSuggestions()
@@ -59,10 +63,10 @@ export default function FriendsPage() {
         .then((rows) => setRanks(Object.fromEntries(rows.map((r) => [r.friend_id, r.position]))))
         .catch(() => {})
     } catch {
-      toast('Could not load friends')
-      setFriendships([])
+      setFailed(true)
     }
-  }, [user.id, toast])
+  }, [user.id])
+  useReloadOnReconnect(load)
 
   useEffect(() => {
     load()
@@ -210,7 +214,7 @@ export default function FriendsPage() {
         </section>
       )}
 
-      {friendships === null && <Spinner />}
+      {friendships === null && (failed ? <LoadFailed what="your friends" onRetry={load} /> : <Spinner />)}
 
       {incoming.length > 0 && (
         <section className="section">

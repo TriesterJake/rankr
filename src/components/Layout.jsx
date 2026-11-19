@@ -4,6 +4,7 @@ import ScrollManager from './ScrollManager.jsx'
 import { useNotifications } from '../NotificationsContext.jsx'
 import { clearNewList, pendingNewList } from '../newList.js'
 import { ShakeToUndo } from '../undo.jsx'
+import { OfflineBar } from './ui.jsx'
 
 // After you make a list and fill it in, leaving it takes you to "Rank lists" with the new list highlighted.
 function useRankNewListOnLeave() {
@@ -34,6 +35,7 @@ export default function Layout() {
     <div className="app-shell">
       <ScrollManager />
       <ShakeToUndo />
+      <OfflineBar />
       <main className="page">
         <Outlet />
       </main>

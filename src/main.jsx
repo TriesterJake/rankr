@@ -6,6 +6,9 @@ import { AuthProvider } from './AuthContext.jsx'
 import { NotificationsProvider } from './NotificationsContext.jsx'
 import { SpoilersProvider } from './spoilers.jsx'
 import './styles.css'
+import { setUpNative } from './native.js'
+
+setUpNative()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

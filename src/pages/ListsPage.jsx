@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { useToast } from '../toast.jsx'
 import { createList, getListsByOwner, reorderLists } from '../api.js'
-import { TopBar, Sheet, Spinner, Empty, SearchBox } from '../components/ui.jsx'
+import { TopBar, Sheet, Spinner, Empty, SearchBox, LoadFailed } from '../components/ui.jsx'
+import { isOffline, useReloadOnReconnect } from '../online.js'
 import ListCard from '../components/ListCard.jsx'
 import ListForm from '../components/ListForm.jsx'
 import ListReorder from '../components/ListReorder.jsx'
@@ -26,14 +27,17 @@ export default function ListsPage() {
   const history = useRef([]) // earlier orders while ranking, newest last
   const [undoCount, setUndoCount] = useState(0)
 
+  const [failed, setFailed] = useState(false)
   const load = useCallback(async () => {
+    setFailed(false)
+    if (isOffline()) return setFailed(true) // don't wait for a request that can't work
     try {
       setLists(await getListsByOwner(user.id))
     } catch {
-      toast('Could not load your lists')
-      setLists([])
+      setFailed(true) // shown below if nothing loaded yet; otherwise the lists already on screen stay
     }
-  }, [user.id, toast])
+  }, [user.id])
+  useReloadOnReconnect(load)
 
   useEffect(() => {
     load()
@@ -173,7 +177,7 @@ export default function ListsPage() {
         }
       />
 
-      {lists === null && <Spinner />}
+      {lists === null && (failed ? <LoadFailed what="your lists" onRetry={load} /> : <Spinner />)}
 
       {lists && lists.length === 0 && (
         <Empty title="No lists yet">

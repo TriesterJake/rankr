@@ -3,9 +3,22 @@
   "appName": "RankR",
   "webDir": "dist",
   "backgroundColor": "#0d0e12",
-  "ios": { "contentInset": "never", "backgroundColor": "#0d0e12" },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0d0e12"
+  },
   "plugins": {
-    "SplashScreen": { "launchAutoHide": true, "launchShowDuration": 600, "backgroundColor": "#0d0e12" },
-    "StatusBar": { "style": "DEFAULT" }
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 600,
+      "backgroundColor": "#0d0e12"
+    },
+    "StatusBar": {
+      "style": "DEFAULT"
+    },
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true
+    }
   }
 }
