@@ -89,7 +89,7 @@ export default function ListsPage() {
 
   async function handleCreate(values) {
     try {
-      const list = await createList({ ownerId: user.id, position: lists ? lists.length : 0, ...values })
+      const list = await createList({ ownerId: user.id, ...values })
       setCreating(false)
       markNewList(list.id)
       navigate(`/list/${list.id}`)

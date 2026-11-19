@@ -49,14 +49,25 @@ export const getList = async (id) =>
       .maybeSingle(),
   )
 
-export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, position, show_in_ideas = true, spoiler = '' }) =>
-  unwrapW(
+// A new list always goes last: one past the highest position (not "how many lists", which ties with the last list
+// whenever a deleted list left a gap in the numbers).
+export const createList = async ({ ownerId, title, icon, icon_path = null, color, visibility, show_in_ideas = true, spoiler = '' }) => {
+  const { data: last } = await supabase
+    .from('lists')
+    .select('position')
+    .eq('owner_id', ownerId)
+    .not('position', 'is', null)
+    .order('position', { ascending: false })
+    .limit(1)
+  const position = last?.length ? last[0].position + 1 : 0
+  return unwrapW(
     await supabase
       .from('lists')
       .insert({ owner_id: ownerId, title, icon, icon_path, color, visibility, position, show_in_ideas, ...(spoiler ? { spoiler } : {}) })
       .select()
       .single(),
   )
+}
 
 export const updateList = async (id, patch) =>
   unwrapW(await supabase.from('lists').update(patch).eq('id', id).select().single())

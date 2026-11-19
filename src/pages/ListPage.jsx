@@ -862,14 +862,12 @@ function ListView() {
     if (copying) return
     setCopying(true)
     try {
-      const mine = await getListsByOwner(user.id)
       const created = await createList({
         ownerId: user.id,
         title: list.title,
         icon: list.icon,
         color: list.color,
         visibility: 'friends',
-        position: mine.length,
         spoiler: list.spoiler || '',
       })
       try {

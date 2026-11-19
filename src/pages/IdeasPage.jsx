@@ -111,8 +111,7 @@ export default function IdeasPage() {
     if (making) return
     setMaking(title)
     try {
-      const mine = await getListsByOwner(user.id)
-      const created = await createList({ ownerId: user.id, title, icon: '', color: randomColor(), visibility: 'friends', position: mine.length })
+      const created = await createList({ ownerId: user.id, title, icon: '', color: randomColor(), visibility: 'friends' })
       toast('Added to your lists')
       markNewList(created.id)
       navigate(`/list/${created.id}`)
