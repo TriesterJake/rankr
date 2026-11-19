@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase.js'
 import { getUnreadCount } from './api.js'
-import { syncPushSubscription } from './push.js'
+import { setNativeBadge, syncPushSubscription, takePendingOpen } from './push.js'
+import { isNative } from './native.js'
 
 const NotificationsContext = createContext({ unread: 0, refreshUnread: () => {}, setUnread: () => {} })
 export const useNotifications = () => useContext(NotificationsContext)
@@ -79,8 +80,20 @@ export function NotificationsProvider({ children }) {
     return () => navigator.serviceWorker.removeEventListener('message', onMessage)
   }, [navigate])
 
+  // Same in the iPhone app (src/push.js), including a tap that just started the app.
+  useEffect(() => {
+    const go = () => {
+      const url = takePendingOpen()
+      if (url) navigate(url)
+    }
+    go()
+    window.addEventListener('rankr:open', go)
+    return () => window.removeEventListener('rankr:open', go)
+  }, [navigate])
+
   // The little number on the app icon (only once notifications are allowed).
   useEffect(() => {
+    if (isNative()) return setNativeBadge(unread)
     try {
       if (!('setAppBadge' in navigator) || !('Notification' in window) || Notification.permission !== 'granted') return
       if (unread > 0) navigator.setAppBadge(unread).catch(() => {})

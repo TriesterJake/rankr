@@ -284,6 +284,12 @@ export const savePushSubscription = async (endpoint, p256dh, auth) =>
 export const deletePushSubscription = async (endpoint) =>
   unwrap(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
 
+// the iPhone app (Apple notifications)
+export const saveApnsToken = async (token) => unwrap(await supabase.rpc('save_apns_token', { p_token: token }))
+
+export const deleteApnsToken = async (token) =>
+  unwrap(await supabase.from('apns_tokens').delete().eq('token', token.toLowerCase()))
+
 // ---------- Private friend ranking (only you can see your own order) ----------
 
 export const getFriendRanks = async (fresh = false) =>

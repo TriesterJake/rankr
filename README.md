@@ -76,7 +76,7 @@ a small Edge Function for push), hosted on Vercel.
    already has a table with that name, don't run the schema there.)
 2. Open **SQL Editor -> New query**, paste all of `supabase/schema.sql`, and click **Run**.
    This creates the tables, the friend-only visibility rules, the notification triggers, and the security
-   policies. `schema.sql` already includes every update (`update-2.sql` to `update-24.sql`), so a new project
+   policies. `schema.sql` already includes every update (`update-2.sql` to `update-25.sql`), so a new project
    only needs this one file.
 3. Go to **Project Settings -> API** (or the **Connect** button) and copy the **Project URL** and the
    **anon / publishable key**.
@@ -137,6 +137,19 @@ Notifications are created by the database. A small Edge Function then pushes the
    then run it in the SQL Editor. Don't commit your real keys.
 5. In the app, open the **Activity** tab and tap **Turn on** (on iPhone this only appears once the app is installed
    on the Home Screen).
+
+**The iPhone app** gets its notifications from Apple instead. The same `send-push` function sends to both,
+so the website keeps working. To set it up (needs the Apple Developer account):
+
+1. Run `supabase/update-25.sql` in the SQL Editor (adds the `apns_tokens` table).
+2. developer.apple.com -> Certificates, IDs & Profiles -> **Keys** -> **+**: tick **Apple Push Notifications service
+   (APNs)**, download the `.p8` file (only downloadable once) and note its **Key ID**. Your **Team ID** is under
+   Account -> Membership details.
+3. Add these Edge Function secrets: `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (the whole `.p8` file,
+   including the BEGIN/END lines) and `APNS_BUNDLE_ID` = `store.rankr.app`. Then redeploy `send-push`.
+   Never commit the `.p8` file.
+4. In Xcode: App target -> **Signing & Capabilities** -> pick your Team -> **+ Capability** -> **Push Notifications**.
+5. Run the app on a real iPhone (the Simulator can't get them), open **Activity** and tap **Turn on**.
 
 ## Keeping it inside the free tier
 

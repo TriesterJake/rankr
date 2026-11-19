@@ -1,5 +1,88 @@
-import { deletePushSubscription, savePushSubscription } from './api.js'
+import { deleteApnsToken, deletePushSubscription, saveApnsToken, savePushSubscription } from './api.js'
 import { isNative } from './native.js'
+
+// ---------- iPhone app: notifications come from Apple (the website below keeps using web push) ----------
+
+const NATIVE_OFF = 'rankr-native-push-off' // set when you tap "Turn off" (iOS can't take back its permission)
+const nativeOff = () => {
+  try {
+    return localStorage.getItem(NATIVE_OFF) === '1'
+  } catch {
+    return false
+  }
+}
+const setNativeOff = (off) => {
+  try {
+    if (off) localStorage.setItem(NATIVE_OFF, '1')
+    else localStorage.removeItem(NATIVE_OFF)
+  } catch {
+    /* fine */
+  }
+}
+const nativePush = async () => (await import('@capacitor/push-notifications')).PushNotifications
+
+async function nativeStatus() {
+  const { receive } = await (await nativePush()).checkPermissions()
+  if (receive === 'denied') return 'blocked'
+  if (receive !== 'granted') return 'off'
+  return nativeOff() ? 'off' : 'on'
+}
+
+// Ask Apple for this iPhone's address ("device token") and save it for whoever is signed in.
+async function registerNative() {
+  const Push = await nativePush()
+  const token = await new Promise((resolve, reject) => {
+    const handles = []
+    const done = (fn, v) => {
+      clearTimeout(timer)
+      handles.forEach((h) => h.then((x) => x.remove()))
+      fn(v)
+    }
+    const timer = setTimeout(() => done(reject, new Error('no device token')), 15000)
+    handles.push(Push.addListener('registration', (t) => done(resolve, t.value)))
+    handles.push(Push.addListener('registrationError', (e) => done(reject, new Error(e?.error || 'registration failed'))))
+    Push.register().catch((e) => done(reject, e))
+  })
+  await saveApnsToken(token)
+  try {
+    localStorage.setItem('rankr-apns-token', token)
+  } catch {
+    /* only needed for "Turn off" */
+  }
+}
+
+// Called once at startup in the iPhone app: tapping a notification opens its page.
+export async function setUpNativePush() {
+  const Push = await nativePush()
+  Push.addListener('pushNotificationActionPerformed', ({ notification }) => {
+    const url = notification?.data?.url
+    if (typeof url === 'string' && url.startsWith('/')) openFromNotification(url)
+  })
+}
+
+// Pages are opened by NotificationsContext (it has the router). A tap that starts the app can arrive before
+// that is ready, so it waits here until then.
+let pendingOpen = null
+function openFromNotification(url) {
+  pendingOpen = url
+  window.dispatchEvent(new CustomEvent('rankr:open', { detail: url }))
+}
+export function takePendingOpen() {
+  const url = pendingOpen
+  pendingOpen = null
+  return url
+}
+
+// The number on the app icon in the iPhone app (MainViewController in AppDelegate.swift sets it).
+export function setNativeBadge(count) {
+  try {
+    window.webkit?.messageHandlers?.rankrBadge?.postMessage(count)
+  } catch {
+    /* not in the app */
+  }
+}
+
+// ---------- Website: web push ----------
 
 const PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -19,7 +102,8 @@ const isInstalled = () => window.matchMedia?.('(display-mode: standalone)').matc
 // 'off' | 'on'    -> can be switched on / is on for this device
 export async function getPushStatus() {
   try {
-    if (!PUBLIC_KEY || isNative()) return 'hidden' // the iPhone app doesn't use web push (yet)
+    if (isNative()) return await nativeStatus()
+    if (!PUBLIC_KEY) return 'hidden'
     if (isIos() && !isInstalled()) return 'needs-install'
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'hidden'
     if (Notification.permission === 'denied') return 'blocked'
@@ -33,6 +117,15 @@ export async function getPushStatus() {
 
 // Must be called from a tap (the phone only shows its permission question after one).
 export async function enablePush() {
+  if (isNative()) {
+    const Push = await nativePush()
+    let { receive } = await Push.checkPermissions()
+    if (receive !== 'granted' && receive !== 'denied') receive = (await Push.requestPermissions()).receive
+    if (receive !== 'granted') return receive === 'denied' ? 'blocked' : 'off'
+    await registerNative()
+    setNativeOff(false)
+    return 'on'
+  }
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return permission === 'denied' ? 'blocked' : 'off'
   const reg = await navigator.serviceWorker.ready
@@ -45,6 +138,17 @@ export async function enablePush() {
 }
 
 export async function disablePush() {
+  if (isNative()) {
+    let token = null
+    try {
+      token = localStorage.getItem('rankr-apns-token')
+    } catch {
+      /* no saved token */
+    }
+    if (token) await deleteApnsToken(token)
+    setNativeOff(true)
+    return 'off'
+  }
   const reg = await navigator.serviceWorker.ready
   const sub = await reg.pushManager.getSubscription()
   if (sub) {
@@ -64,6 +168,15 @@ export async function syncPushSubscription(userId) {
       /* storage unavailable: just sync */
     }
     if ((await getPushStatus()) !== 'on') return
+    if (isNative()) {
+      await registerNative()
+      try {
+        localStorage.setItem(mark, String(Date.now()))
+      } catch {
+        /* fine */
+      }
+      return
+    }
     const reg = await navigator.serviceWorker.ready
     const sub = await reg.pushManager.getSubscription()
     if (!sub) return
@@ -82,6 +195,7 @@ export async function syncPushSubscription(userId) {
 // Remove RankR's banners from the phone's notification list (used when you open Activity).
 export async function clearDeliveredNotifications() {
   try {
+    if (isNative()) return await (await nativePush()).removeAllDeliveredNotifications()
     if (!('serviceWorker' in navigator)) return
     const reg = await navigator.serviceWorker.ready
     const shown = await reg.getNotifications()

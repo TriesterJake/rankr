@@ -1,5 +1,7 @@
 import UIKit
 import Capacitor
+import WebKit
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -31,6 +33,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationWillTerminate(_ application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    }
+
+    // Notifications: Apple hands us this iPhone's address ("device token"); pass it on to the push plugin (src/push.js).
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
@@ -76,7 +87,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 // The app's main screen. Same as Capacitor's, plus shake to undo: a shake tells the page,
 // which shows the classic "Undo Move? Cancel / Undo" box when there is something to undo (src/undo.jsx).
-class MainViewController: CAPBridgeViewController {
+class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     override var canBecomeFirstResponder: Bool { true }
 
     // Swipe in from the left edge to go back a page, like Safari and the home-screen web app.
@@ -93,6 +104,17 @@ class MainViewController: CAPBridgeViewController {
         view.backgroundColor = appBackground
         webView?.backgroundColor = appBackground
         webView?.scrollView.backgroundColor = appBackground
+        // The number on the app icon: the page sends the unread count (setNativeBadge in src/push.js).
+        webView?.configuration.userContentController.add(self, name: "rankrBadge")
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "rankrBadge", let count = message.body as? Int else { return }
+        if #available(iOS 16.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(max(0, count))
+        } else {
+            UIApplication.shared.applicationIconBadgeNumber = max(0, count)
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {

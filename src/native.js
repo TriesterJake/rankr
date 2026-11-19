@@ -8,6 +8,8 @@ export async function setUpNative() {
   const { Keyboard } = await import('@capacitor/keyboard')
   Keyboard.addListener('keyboardWillShow', () => document.body.classList.add('keyboard-open'))
   Keyboard.addListener('keyboardWillHide', () => document.body.classList.remove('keyboard-open'))
+  const { setUpNativePush } = await import('./push.js')
+  setUpNativePush().catch(() => {})
 }
 
 // Where you are right now. In the iPhone app this asks through iOS itself ("RankR would like to use your location"),
