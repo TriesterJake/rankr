@@ -377,7 +377,7 @@ export default function AuthPage() {
             <span className="label">Code from your email</span>
             <input
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\s/g, ''))}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} // digits only: pasted codes can carry spaces or invisible characters
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={10}

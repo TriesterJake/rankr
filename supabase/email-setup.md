@@ -15,9 +15,12 @@ Paste this body into **Confirm signup**, **Reset password** and **Change email a
 ```html
 <h2>Your RankR code</h2>
 <p>Enter this code in the app:</p>
-<h1 style="letter-spacing:4px">{{ .Token }}</h1>
+<h1 style="letter-spacing:4px">{{ slice .Token 0 3 }}&#8203;{{ slice .Token 3 }}</h1>
 <p>If you didn't ask for this, you can ignore this email.</p>
 ```
+
+The `&#8203;` is an invisible character in the middle of the code. Without it, the iPhone Mail app thinks the code is a
+phone number and turns it into a "call" link. The app ignores it if someone copies and pastes the code.
 
 Suggested subjects: "Your RankR code" for all three.
 
