@@ -2524,3 +2524,7 @@ body.keyboard-open .tabbar,
 body.keyboard-open .offline-bar {
   display: none;
 }
+/* with the tabs hidden, the add-an-item bar sits right on top of the keyboard */
+body.keyboard-open .addbar {
+  bottom: 0;
+}
