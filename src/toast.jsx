@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import { isOffline } from './online.js'
 
 const ToastContext = createContext(() => {})
 export const useToast = () => useContext(ToastContext)
@@ -14,6 +15,8 @@ export function ToastProvider({ children }) {
   }, [])
 
   const toast = useCallback((text, { action = null, duration } = {}) => {
+    // offline, every "Could not save / load / ..." has the same real reason: say that instead
+    if (isOffline() && /^Could not\b/i.test(text)) text = 'You’re offline. Try again when you’re connected.'
     setCurrent({ text, action })
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setCurrent(null), duration ?? (action ? 6000 : 2600))
