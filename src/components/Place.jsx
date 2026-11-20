@@ -101,9 +101,23 @@ export function setMapsApp(id) {
   }
 }
 
+// RankR added to an iPhone Home Screen (not the App Store app, not a Safari tab)
+const isIosHomeScreenApp = () =>
+  !isNative() &&
+  (window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches) &&
+  (/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+
 function openMaps(app, place) {
+  const url = urlFor(app, place)
+  // Home Screen app on iPhone: opening a new window leaves an empty white window behind after the maps app
+  // takes over, and coming back lands on it. Following the link directly hands it to the maps app and RankR
+  // stays as it was (a link the maps app doesn't take opens in a Safari sheet on top, with a Done button).
+  if (isIosHomeScreenApp()) {
+    window.location.href = url
+    return
+  }
   // a new tab on the web; in the iPhone app the link opens the maps app itself
-  window.open(urlFor(app, place), '_blank', 'noopener')
+  window.open(url, '_blank', 'noopener')
 }
 
 // item -> { name, lat, lng } or null
