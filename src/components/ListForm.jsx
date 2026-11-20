@@ -4,6 +4,17 @@ import { useToast } from '../toast.jsx'
 import { removeImages, resizeImage, thumbUrl, uploadItemImage } from '../images.js'
 import { COLORS, TEMPLATES, randomColor, inkOn } from '../templates.js'
 
+// The icon is up to 4 visible characters: letters or emoji. Some emoji are made of several pieces
+// (🏳️‍🌈 is 🏳️ + 🌈 glued together), so count what you see, not the pieces, or the flag gets cut in half.
+const MAX_ICON = 4
+function shortIcon(text) {
+  const parts =
+    typeof Intl !== 'undefined' && Intl.Segmenter
+      ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (x) => x.segment)
+      : Array.from(text)
+  return parts.slice(0, MAX_ICON).join('').slice(0, 40)
+}
+
 // Used both to create a list and to edit its settings.
 export default function ListForm({ initial, submitLabel, showTemplates, onSubmit, onDelete }) {
   const { user, profile } = useAuth()
@@ -28,7 +39,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
     setBusy(true)
     try {
       const spoilerText = hasSpoilers ? spoiler.trim().slice(0, 80) : ''
-      const values = { title: clean, icon: icon.trim().slice(0, 4), icon_path: iconPath, color, visibility, show_in_ideas: showInIdeas }
+      const values = { title: clean, icon: shortIcon(icon.trim()), icon_path: iconPath, color, visibility, show_in_ideas: showInIdeas }
       // only send the spoiler field when it's used or changed (works before update-18.sql too)
       if (spoilerText || initial?.spoiler) values.spoiler = spoilerText
       const ok = await onSubmit(values)
@@ -97,7 +108,7 @@ export default function ListForm({ initial, submitLabel, showTemplates, onSubmit
       <label className="field">
         <span className="label">Icon (optional)</span>
         <span className="input-with-clear">
-          <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="A letter or emoji, e.g. a favorite emoji" maxLength={4} />
+          <input value={icon} onChange={(e) => setIcon(shortIcon(e.target.value))} placeholder="A letter or emoji, e.g. a favorite emoji" />
           {icon && (
             <button type="button" className="btn small" onClick={() => setIcon('')}>
               Clear
